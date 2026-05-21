@@ -1,0 +1,82 @@
+
+> project-management-frontend@1.0.0 dev
+> vite --host 0.0.0.0
+
+
+  [32m[1mVITE[22m v6.4.2[39m  [2mready in [0m[1m727[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.34.48:[1m5173[22m/[39m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/App.jsx, /src/styles/index.css[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app/router.jsx, /src/styles/index.css[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/main.jsx[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/DashboardPage.jsx, /src/pages/CalendarSettingsPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/GanttPage.jsx, /src/pages/ProjectsPage.jsx, /src/pages/TeamPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/SettingsPage.jsx, /src/pages/DepartmentGanttPage.jsx, /src/components/task/TaskFormModal.jsx, /src/components/board/BoardView.jsx, /src/components/task/TaskDetailModal.jsx, /src/components/project/BucketManager.jsx[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/components/board/BoardView.jsx, /src/components/task/TaskDetailModal.jsx[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/ProjectsPage.jsx, /src/pages/DashboardPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/GanttPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/DepartmentGanttPage.jsx, /src/components/task/TaskFormModal.jsx, /src/components/project/BucketManager.jsx[22m
+[2m9:26:24 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/CalendarSettingsPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/SettingsPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/GanttPage.jsx, /src/pages/TeamPage.jsx, /src/pages/DepartmentGanttPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/DashboardPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/DepartmentGanttPage.jsx, /src/components/dashboard/TaskStatusChart.jsx, /src/components/dashboard/ProjectProgressCard.jsx, /src/components/project/ProjectCard.jsx, /src/components/project/ProjectHeader.jsx, /src/components/task/TaskDetailModal.jsx, /src/components/task/TaskTree.jsx, /src/components/gantt/GanttRow.jsx, /src/components/task/SubtaskList.jsx, /src/components/task/TaskCard.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/layout/MainLayout.jsx, /src/pages/CalendarSettingsPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/ProjectsPage.jsx, /src/pages/TeamPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/SettingsPage.jsx, /src/components/project/BucketManager.jsx, /src/components/board/BoardView.jsx, /src/components/task/TaskDetailModal.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/GanttPage.jsx, /src/pages/DepartmentGanttPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TeamPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/GanttPage.jsx, /src/pages/ProjectsPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/DepartmentGanttPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/task/TaskFilters.jsx, /src/components/task/TaskFormModal.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TeamPage.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/ProjectsPage.jsx, /src/components/dashboard/TaskStatusChart.jsx, /src/components/project/ProjectFormModal.jsx, /src/components/gantt/GanttFilters.jsx, /src/components/task/TaskFilters.jsx, /src/components/board/BoardView.jsx, /src/components/task/TaskFormModal.jsx[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/store/taskStore.js[22m
+[2m9:26:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/store/projectStore.js[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/project/ProjectCard.jsx, /src/components/project/ProjectFormModal.jsx, /src/components/calendar/CalendarExceptionTable.jsx, /src/components/project/ProjectHeader.jsx, /src/components/task/TaskDetailModal.jsx, /src/components/task/TaskFormModal.jsx, /src/components/task/TaskTree.jsx, /src/components/gantt/GanttChart.jsx, /src/components/gantt/GanttRow.jsx, /src/components/gantt/GanttQuickResume.jsx, /src/components/task/TaskCard.jsx[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/board/BoardView.jsx, /src/components/task/TaskFormModal.jsx, /src/components/gantt/GanttChart.jsx, /src/components/gantt/GanttRow.jsx, /src/components/gantt/GanttQuickResume.jsx, /src/components/task/TaskCard.jsx[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/DepartmentGanttPage.jsx, /src/components/dashboard/TaskStatusChart.jsx, /src/components/dashboard/ProjectProgressCard.jsx, /src/components/project/ProjectCard.jsx, /src/components/project/ProjectHeader.jsx, /src/components/task/TaskDetailModal.jsx, /src/components/task/TaskTree.jsx, /src/components/gantt/GanttRow.jsx, /src/components/task/SubtaskList.jsx, /src/components/task/TaskCard.jsx[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/task/TaskDetailModal.jsx, /src/components/gantt/GanttRow.jsx[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/task/TaskDetailModal.jsx, /src/components/task/TaskTree.jsx, /src/components/gantt/GanttTreeRow.jsx, /src/components/gantt/GanttQuickResume.jsx, /src/components/task/TaskCard.jsx[22m
+[2m9:27:19 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/components/gantt/GanttChart.jsx, /src/components/gantt/GanttRow.jsx[22m
+[2m9:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/ProjectDetailPage.jsx[22m
+[2m9:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/DashboardPage.jsx, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/GanttPage.jsx, /src/pages/ProjectsPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/DepartmentGanttPage.jsx, /src/components/task/TaskFormModal.jsx[22m
+[2m9:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TaskListPage.jsx, /src/pages/BoardPage.jsx, /src/pages/GanttPage.jsx, /src/pages/ProjectsPage.jsx, /src/pages/TeamPage.jsx, /src/pages/ProjectDetailPage.jsx, /src/pages/DepartmentGanttPage.jsx[22m
+[2m9:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/TaskListPage.jsx, /src/pages/GanttPage.jsx, /src/pages/TeamPage.jsx, /src/pages/SettingsPage.jsx, /src/pages/DepartmentGanttPage.jsx[22m
+[2m9:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/index.css, /src/pages/CalendarSettingsPage.jsx[22m
+[2m9:29:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/BoardPage.jsx, /src/styles/index.css[22m
+[2m9:29:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/CalendarSettingsPage.jsx, /src/styles/index.css[22m
+[2m9:29:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/DashboardPage.jsx, /src/styles/index.css[22m
+[2m9:29:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/DepartmentGanttPage.jsx, /src/styles/index.css[22m
+[2m9:29:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/GanttPage.jsx, /src/styles/index.css[22m
+[2m9:30:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/ProjectDetailPage.jsx, /src/styles/index.css[22m
+[2m9:30:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/ProjectsPage.jsx, /src/styles/index.css[22m
+[2m9:30:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/SettingsPage.jsx, /src/styles/index.css[22m
+[2m9:30:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TaskListPage.jsx, /src/styles/index.css[22m
+[2m9:30:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/TeamPage.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/board/BoardColumn.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/board/BoardGroupSwitcher.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/calendar/CalendarExceptionForm.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/dashboard/ProjectProgressCard.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/MainLayout.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/board/BoardView.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/calendar/CalendarExceptionTable.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/dashboard/SummaryCard.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/dashboard/TaskStatusChart.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/shared/FormField.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Sidebar.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/layout/Topbar.jsx, /src/styles/index.css[22m
+[2m9:30:58 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/shared/Modal.jsx, /src/styles/index.css[22m
+[2m9:31:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/project/BucketManager.jsx, /src/styles/index.css[22m
+[2m9:31:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/project/ProjectCard.jsx, /src/styles/index.css[22m
+[2m9:31:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/project/ProjectFormModal.jsx, /src/styles/index.css[22m
+[2m9:31:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/project/ProjectHeader.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/SubtaskList.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskCard.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskDetailModal.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskFilters.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskFormModal.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskRealizationManualModal.jsx, /src/styles/index.css[22m
+[2m9:31:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskTree.jsx, /src/styles/index.css[22m
+[2m9:32:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttChart.jsx, /src/styles/index.css[22m
+[2m9:32:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttFilters.jsx, /src/styles/index.css[22m
+[2m9:32:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttRow.jsx, /src/styles/index.css[22m
+[2m9:32:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttTimelineHeader.jsx, /src/styles/index.css[22m
+[2m9:32:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttTreeRow.jsx, /src/styles/index.css[22m
+[2m9:32:49 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttQuickResume.jsx, /src/styles/index.css[22m
+[2m9:33:05 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttQuickResume.jsx, /src/styles/index.css[22m
+[2m9:33:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskDetailModal.jsx, /src/styles/index.css[22m
+[2m9:33:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/task/TaskTree.jsx, /src/styles/index.css[22m
+[2m9:33:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/gantt/GanttChart.jsx, /src/styles/index.css[22m

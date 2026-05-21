@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS locations (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_users_location_id ON users(location_id);
+
+DROP TRIGGER IF EXISTS trg_locations_updated_at ON locations;
+CREATE TRIGGER trg_locations_updated_at
+BEFORE UPDATE ON locations
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
