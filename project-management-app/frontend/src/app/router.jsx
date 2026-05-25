@@ -6,9 +6,13 @@ import DashboardPage from '../pages/DashboardPage';
 import DepartmentGanttPage from '../pages/DepartmentGanttPage';
 import GanttPage from '../pages/GanttPage';
 import LocationsPage from '../pages/LocationsPage';
+import MyTasksPage from '../pages/MyTasksPage';
+import NotificationsPage from '../pages/NotificationsPage';
+import PerformancePage from '../pages/PerformancePage';
 import ProjectDetailPage from '../pages/ProjectDetailPage';
 import ProjectsPage from '../pages/ProjectsPage';
 import SettingsPage from '../pages/SettingsPage';
+import TaskCalendarPage from '../pages/TaskCalendarPage';
 import TaskListPage from '../pages/TaskListPage';
 import TeamPage from '../pages/TeamPage';
 
@@ -23,6 +27,10 @@ function AppRouter() {
       <Route path="/projects/:projectId/list" element={<TaskListPage />} />
       <Route path="/projects/:projectId/gantt" element={<GanttPage />} />
       <Route path="/tasks" element={<TaskListPage />} />
+      <Route path="/my-tasks" element={<MyTasksPage />} />
+      <Route path="/tasks/calendar" element={<TaskCalendarPage />} />
+      <Route path="/notifications" element={<NotificationsPage />} />
+      <Route path="/performance" element={<PerformancePage />} />
       <Route path="/gantt" element={<GanttPage />} />
       <Route path="/departments/gantt" element={<DepartmentGanttPage />} />
       <Route path="/team" element={<TeamPage />} />

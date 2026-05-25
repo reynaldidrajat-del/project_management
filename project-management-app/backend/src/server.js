@@ -1,24 +1,35 @@
 const cors = require('cors');
 const dotenv = require('dotenv');
 const express = require('express');
+const http = require('http');
 
+const activityRoutes = require('./routes/activityRoutes');
 const authRoutes = require('./routes/authRoutes');
 const bucketRoutes = require('./routes/bucketRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const ganttRoutes = require('./routes/ganttRoutes');
 const locationRoutes = require('./routes/locationRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const performanceRoutes = require('./routes/performanceRoutes');
 const projectRoutes = require('./routes/projectRoutes');
+const taskChecklistRoutes = require('./routes/taskChecklistRoutes');
+const taskCommentRoutes = require('./routes/taskCommentRoutes');
+const taskLabelRoutes = require('./routes/taskLabelRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const userRoutes = require('./routes/userRoutes');
 const { verifyApplicationSchema, verifyDatabaseConnection } = require('./config/db');
+const { authenticateRequest } = require('./middlewares/authMiddleware');
+const { initializeRealtimeServer } = require('./services/realtimeService');
 const { sendError, sendSuccess } = require('./utils/responseUtils');
 
 dotenv.config();
 
 // Membuat aplikasi Express sebagai pintu masuk semua request backend.
 const app = express();
+const httpServer = http.createServer(app);
 const port = process.env.PORT || 5000;
 
 const configuredFrontendOrigins = (process.env.FRONTEND_URL || '')
@@ -48,18 +59,25 @@ const isLocalOrPrivateNetworkOrigin = (origin) => {
 };
 
 // Mengizinkan frontend lokal dan LAN memanggil API backend.
+const corsOriginHandler = (origin, callback) => {
+  if (configuredFrontendOrigins.includes(origin) || isLocalOrPrivateNetworkOrigin(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error('Origin tidak diizinkan oleh CORS.'));
+};
+
 app.use(
   cors({
-    origin(origin, callback) {
-      if (configuredFrontendOrigins.includes(origin) || isLocalOrPrivateNetworkOrigin(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error('Origin tidak diizinkan oleh CORS.'));
-    },
+    origin: corsOriginHandler,
   }),
 );
+initializeRealtimeServer(httpServer, {
+  cors: {
+    origin: corsOriginHandler,
+  },
+});
 // Membaca body JSON dari request agar controller bisa memakai req.body.
 app.use(express.json({ limit: '2mb' }));
 
@@ -73,13 +91,21 @@ app.get('/', (_req, res) => {
 
 // Mendaftarkan semua kelompok route API sesuai domain fitur.
 app.use('/api/auth', authRoutes);
+app.use('/api', authenticateRequest);
+app.use('/api/activities', activityRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/performance', performanceRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/buckets', bucketRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/task-checklists', taskChecklistRoutes);
+app.use('/api/task-comments', taskCommentRoutes);
+app.use('/api/task-labels', taskLabelRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/gantt', ganttRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
@@ -99,7 +125,7 @@ const startServer = async () => {
     const connection = await verifyDatabaseConnection();
     await verifyApplicationSchema();
 
-    app.listen(port, () => {
+    httpServer.listen(port, () => {
       console.log(
         `Project Management API running on http://localhost:${port} using database ${connection.database}@${connection.server_addr}:${connection.server_port}`,
       );

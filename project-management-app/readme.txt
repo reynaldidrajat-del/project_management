@@ -3618,6 +3618,908 @@ Known risks:
 - The backend still depends on PostgreSQL being available at the configured local connection.
 - Browser-level visual verification was not performed during this run-only task.
 
+2026-05-21 - Add professional development roadmap documentation
+Files changed:
+  pengembangan.txt
+  readme.txt
+
+What changed:
+- Created pengembangan.txt as a detailed upstream-to-downstream development concept document.
+- Documented public Cicle-inspired feature research and mapped it to the current Planner Gantt application.
+- Added technical target architecture, database design, backend module plan, frontend module plan, API endpoint plan, dependency strategy, TypeScript migration strategy, testing strategy, rollout phases, business process changes, risks, and acceptance criteria.
+- No application runtime source code, API implementation, database schema, or UI behavior was changed.
+
+Reason:
+- The project needs a formal technical roadmap before implementing Cicle-like professional collaboration features.
+- The roadmap gives future development a structured sequence so core Planner, Gantt, department timeline, approval, and working calendar behavior can be preserved while collaboration modules are added safely.
+
+Behavior impact:
+- No runtime behavior impact.
+- No database migration was executed.
+- No dependency was installed.
+- The new document acts as planning and implementation guidance only.
+
+Verification:
+- Confirmed pengembangan.txt did not exist before creation.
+- Created documentation file in the project root.
+- Appended this change log entry to readme.txt as required by the project instructions.
+
+Known risks:
+- The roadmap is based on public Cicle information available on 2026-05-21 and should be validated through hands-on product trial/demo before final feature parity decisions.
+- Estimates are planning-level estimates and must be recalibrated after code-level design and implementation starts.
+
+2026-05-21 - Implement Phase 1 auth, RBAC, session, and activity foundation
+Files changed:
+  backend/package.json
+  backend/package-lock.json
+  backend/src/config/db.js
+  backend/src/controllers/activityController.js
+  backend/src/controllers/authController.js
+  backend/src/controllers/bucketController.js
+  backend/src/controllers/calendarController.js
+  backend/src/controllers/departmentController.js
+  backend/src/controllers/locationController.js
+  backend/src/controllers/projectController.js
+  backend/src/controllers/taskController.js
+  backend/src/controllers/userController.js
+  backend/src/database/migrations/20260521_phase1_auth_rbac_activity.sql
+  backend/src/database/schema.sql
+  backend/src/database/seed.sql
+  backend/src/middlewares/authMiddleware.js
+  backend/src/middlewares/permissionMiddleware.js
+  backend/src/routes/activityRoutes.js
+  backend/src/routes/authRoutes.js
+  backend/src/routes/bucketRoutes.js
+  backend/src/routes/calendarRoutes.js
+  backend/src/routes/departmentRoutes.js
+  backend/src/routes/locationRoutes.js
+  backend/src/routes/projectRoutes.js
+  backend/src/routes/taskRoutes.js
+  backend/src/routes/userRoutes.js
+  backend/src/server.js
+  backend/src/services/activityService.js
+  backend/src/services/authService.js
+  backend/src/services/permissionService.js
+  backend/src/services/projectService.js
+  backend/src/services/taskService.js
+  backend/src/utils/responseUtils.js
+  frontend/src/app/App.jsx
+  frontend/src/components/activity/ProjectActivityFeed.jsx
+  frontend/src/components/layout/Topbar.jsx
+  frontend/src/logic/services/activityApi.js
+  frontend/src/logic/services/api.js
+  frontend/src/logic/services/authApi.js
+  frontend/src/pages/LoginPage.jsx
+  frontend/src/pages/ProjectDetailPage.jsx
+  frontend/src/store/uiStore.js
+  frontend-runtime.out.log
+  readme.txt
+
+What changed:
+- Added backend dependencies bcryptjs and zod.
+- Added migration 20260521_phase1_auth_rbac_activity.sql for Phase 1 database foundation:
+  auth_sessions, password_reset_tokens, role_permissions, users.is_active, users.last_login_at, invitation metadata, deleted_at, bcrypt default password hash, and richer activity_logs metadata.
+- Updated schema.sql and seed.sql so fresh database setup includes Phase 1 auth/session/RBAC/activity structures and default role permissions.
+- Reworked authService from local user-only login into token session login:
+  login validates payload with zod, supports legacy sha256 password hash migration, hashes new passwords with bcryptjs, creates auth_sessions token, updates last_login_at, and records auth.login activity.
+- Added /api/auth/me and /api/auth/logout.
+- Added authMiddleware that validates Bearer token sessions before protected API routes.
+- Protected all non-auth API routes with authentication from server.js.
+- Added permissionService and permissionMiddleware with role_permissions support and safe fallback rules for super_admin, admin, manager, contributor, member, and viewer.
+- Added mutation-level permission middleware to task, project, bucket, department, location, user, and calendar routes.
+- Added activityService, activityController, and /api/activities endpoint for audit feed queries.
+- Added audit logging for auth login/logout, project create/update/delete, task create/update/delete/status/progress/approval/realization/move/parent update, bucket create/update/delete, department create/update/delete, location create/update/delete, user create/update/delete, and calendar exception actions.
+- Replaced the Project Detail Activity placeholder with a real ProjectActivityFeed that reads /api/activities?project_id=...
+- Updated frontend login flow to store session token and authenticated user separately.
+- Updated frontend API client to send Authorization: Bearer token, clear local auth storage on HTTP 401, and redirect expired/invalid sessions back to login.
+- Updated logout button to call backend logout before clearing local session state.
+- Updated App guard so old local user data without a valid token must login again.
+- Restarted the frontend dev server, which refreshed frontend-runtime.out.log.
+
+Reason:
+- Phase 1 in pengembangan.txt requires security and governance before Cicle-like collaboration features are added.
+- Session token auth, RBAC, and audit trail are required foundations for future comments, notification, chat, documents, check-in, and performance report modules.
+- Activity must be visible in UI, not only stored in the database, so project stakeholders can audit who changed what.
+
+Behavior impact:
+- API behavior changed: all /api routes except /api/auth/login, /api/auth/me route protection, /api/auth/logout route protection, and root health endpoint now require a valid Bearer token.
+- Login response shape changed from a raw user object to { user, token, expires_at }.
+- Existing frontend login was updated to match the new response shape.
+- Existing localStorage user sessions without token are no longer accepted and users must login again.
+- Existing sha256 password hashes still work; after successful login they are migrated to bcryptjs.
+- Mutation routes now check basic role permissions before controller logic.
+- Task lead approval business logic is preserved: route permission allows the request, but taskService still enforces lead or super_admin approval rules.
+- Database was migrated locally using the new Phase 1 migration.
+- No task/project planning behavior, Gantt calculation, rollup progress logic, working calendar calculation, or approval semantics were intentionally changed.
+
+Progress against pengembangan.txt:
+- Fase 1 - Auth, Session, RBAC Dasar, dan Audit Log:
+  Core implementation completed for session auth, Bearer token middleware, role permission table, route-level permission checks, activity service, activity endpoint, frontend token auth, logout, and project activity feed.
+- Fase 1 items still pending:
+  password reset flow UI/API, invitation acceptance flow, full project-scoped access policy, object-level permission, soft archive conversion for destructive deletes, dedicated session management UI, and deeper security hardening such as rate limiting and security headers.
+- Fase 2 has not started.
+
+Verification:
+- Installed dependencies:
+  cd backend
+  npm install bcryptjs zod
+- Applied migration through Node/pg because psql is not available in PATH:
+  backend/src/database/migrations/20260521_phase1_auth_rbac_activity.sql
+- Ran backend syntax check:
+  Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
+  Result: success.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Ran backend production dependency audit:
+  cd backend
+  npm audit --omit=dev
+  Result: found 0 vulnerabilities.
+- Started temporary backend smoke server on http://127.0.0.1:5055 and verified:
+  GET /api/dashboard/summary without token returns HTTP 401.
+  POST /api/auth/login with superadmin@project-management.local returns HTTP 200 and a token.
+  GET /api/dashboard/summary with Bearer token returns HTTP 200.
+  GET /api/projects with Bearer token returns HTTP 200.
+  POST /api/tasks with Bearer token creates a temporary smoke task.
+  GET /api/activities?project_id=... returns activity rows.
+  DELETE /api/tasks/:id removes the temporary smoke task.
+  POST /api/auth/logout revokes the session.
+- Stopped the temporary smoke backend process after verification.
+- Restarted local development services with the updated Phase 1 code:
+  Backend: http://127.0.0.1:5000
+  Frontend: http://127.0.0.1:5173
+- Verified updated runtime services:
+  POST /api/auth/login on port 5000 returns HTTP 200 and token.
+  GET /api/dashboard/summary with Bearer token returns HTTP 200.
+  GET /api/activities?limit=3 with Bearer token returns HTTP 200.
+  POST /api/auth/logout revokes the token session.
+  GET http://127.0.0.1:5173/ returns HTTP 200.
+
+Known risks:
+- Existing browser sessions must login again because the old local user-only session format does not contain a Bearer token.
+- Password reset and invitation flows are prepared structurally but not implemented as user-facing workflows yet.
+- Permission checks are role-based and route-level; project-scoped and object-level authorization is still a Phase 1 follow-up.
+- Delete routes still perform hard deletes for several resources; soft archive conversion remains pending.
+- Activity logging is broad but not yet immutable or protected by a dedicated audit retention policy.
+- Realtime notification/chat from later phases has not started.
+
+2026-05-22 - Implement Phase 2 task labels, checklists, My Tasks, calendar view, and bulk actions
+Files changed:
+  backend/src/config/db.js
+  backend/src/controllers/taskChecklistController.js
+  backend/src/controllers/taskController.js
+  backend/src/controllers/taskLabelController.js
+  backend/src/database/migrations/20260522_phase2_task_labels_checklists.sql
+  backend/src/database/schema.sql
+  backend/src/database/seed.sql
+  backend/src/routes/projectRoutes.js
+  backend/src/routes/taskChecklistRoutes.js
+  backend/src/routes/taskLabelRoutes.js
+  backend/src/routes/taskRoutes.js
+  backend/src/server.js
+  backend/src/services/permissionService.js
+  backend/src/services/taskChecklistService.js
+  backend/src/services/taskLabelService.js
+  backend/src/services/taskService.js
+  frontend-runtime.out.log
+  frontend/src/app/router.jsx
+  frontend/src/components/layout/Sidebar.jsx
+  frontend/src/components/layout/Topbar.jsx
+  frontend/src/components/task/TaskBulkToolbar.jsx
+  frontend/src/components/task/TaskCalendarView.jsx
+  frontend/src/components/task/TaskCard.jsx
+  frontend/src/components/task/TaskDetailModal.jsx
+  frontend/src/components/task/TaskFilters.jsx
+  frontend/src/components/task/TaskFormModal.jsx
+  frontend/src/components/task/TaskLabelManager.jsx
+  frontend/src/components/task/TaskTree.jsx
+  frontend/src/logic/helpers/taskLabelHelper.js
+  frontend/src/logic/hooks/useTaskLabels.js
+  frontend/src/logic/services/taskApi.js
+  frontend/src/pages/BoardPage.jsx
+  frontend/src/pages/MyTasksPage.jsx
+  frontend/src/pages/ProjectDetailPage.jsx
+  frontend/src/pages/TaskCalendarPage.jsx
+  frontend/src/pages/TaskListPage.jsx
+  readme.txt
+
+What changed:
+- Added Phase 2 migration 20260522_phase2_task_labels_checklists.sql.
+- Added task metadata columns for creator, archive state, delete metadata, completion/approval timestamps, and due reminder timestamp.
+- Added bucket metadata columns for type, color, done bucket flag, move permission role, and archive state.
+- Added task_labels, task_label_assignments, and task_checklists tables with indexes and updated_at triggers.
+- Added role permissions for task_label and task_checklist resources.
+- Updated schema.sql and seed.sql so fresh installs include Phase 2 structures and permission seeds.
+- Added taskLabelService/controller/routes for listing, creating, updating, and deleting task labels.
+- Added taskChecklistService/controller/routes for listing, creating, updating, and deleting task checklist items.
+- Extended taskService task reads to include labels, label_ids, checklist_total, checklist_completed, creator/archive/completion/approval metadata.
+- Extended task create/update to accept label_ids and keep label assignments synchronized with the task project.
+- Added task filtering by label_id, search text, include_archived, and my_tasks=true for current login user.
+- Added bulk task update endpoint POST /api/tasks/bulk-update for status, priority, bucket, archive, and unarchive actions.
+- Added audit logging for task labels, task checklists, and task bulk actions.
+- Added frontend task label API methods, checklist API methods, and bulk update API method.
+- Added useTaskLabels hook and task label color helper.
+- Added TaskLabelManager for creating and deleting labels in selected project context.
+- Added label selector to TaskFormModal and label display in TaskCard and TaskDetailModal.
+- Added checklist create/toggle/delete workflow in TaskDetailModal.
+- Added TaskBulkToolbar and row selection support in TaskTree.
+- Added MyTasksPage at /my-tasks.
+- Added TaskCalendarPage at /tasks/calendar and TaskCalendarView for task due dates.
+- Added Calendar tab in ProjectDetailPage.
+- Updated Sidebar and Topbar navigation for My Tasks and Task Calendar.
+- Restarted local frontend dev server, refreshing frontend-runtime.out.log.
+
+Reason:
+- Phase 2 in pengembangan.txt focuses on making daily work management more professional before deeper collaboration modules are built.
+- Labels, checklist, My Tasks, calendar view, and bulk actions are foundational Cicle-like work management capabilities.
+- The implementation preserves existing Board/List/Gantt task behavior while adding metadata and views around the same task source of truth.
+
+Behavior impact:
+- Task API responses now include label and checklist summary metadata.
+- Task create/update payloads can include label_ids.
+- Default task list queries exclude archived tasks unless include_archived=true is sent.
+- Users now have /my-tasks for tasks where they are PIC or lead.
+- Users now have /tasks/calendar for due-date calendar view.
+- Project detail now has a Calendar tab.
+- Bulk action can update selected task status, priority, bucket, archive state, or unarchive state.
+- Checklist completion is tracked per task but does not currently alter task progress automatically.
+- Labels are project-scoped; deleting a label removes its task assignments through cascade.
+- Existing task progress rollup, Gantt, realization, approval, and working calendar behavior are preserved.
+
+Progress against pengembangan.txt:
+- Fase 2 - Work Management Lebih Profesional:
+  Core implementation completed for task labels, task checklist, My Tasks, All Tasks filter improvements, calendar view, bulk actions, archive metadata, bucket metadata, task label/checklist API, and UI integration.
+- Fase 2 items still pending:
+  saved filters, column chooser, server-side pagination for very large task lists, per-bucket/list movement permission enforcement, richer checklist nesting UI, label editing UI, task export, and complete soft-archive replacement for existing delete workflows.
+- Fase 3 has not started.
+
+Verification:
+- Applied migration through Node/pg:
+  backend/src/database/migrations/20260522_phase2_task_labels_checklists.sql
+- Ran backend syntax check:
+  Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
+  Result: success.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Restarted local development services with Phase 2 code:
+  Backend: http://127.0.0.1:5000
+  Frontend: http://127.0.0.1:5173
+- Ran live API smoke test:
+  POST /api/auth/login returns HTTP 200 and token.
+  GET /api/projects returns HTTP 200.
+  POST /api/task-labels creates a temporary task label.
+  POST /api/tasks creates a temporary task with label_ids.
+  POST /api/tasks/:taskId/checklists creates a checklist item.
+  PUT /api/task-checklists/:id marks the checklist item done.
+  GET /api/tasks?label_id=... returns the temporary labeled task.
+  GET /api/tasks?my_tasks=true returns HTTP 200.
+  POST /api/tasks/bulk-update updates temporary task priority.
+  GET /api/activities?project_id=... returns activity rows.
+  DELETE /api/tasks/:id removes the temporary smoke task.
+  DELETE /api/task-labels/:id removes the temporary smoke label.
+  POST /api/auth/logout revokes the session.
+- Verified frontend route:
+  GET http://127.0.0.1:5173/tasks/calendar returns HTTP 200.
+
+Known risks:
+- Label creation/deletion UI is intentionally simple; label editing UI is not yet exposed even though the backend supports it.
+- Checklist nesting exists in schema but the current UI only manages flat checklist items.
+- Checklist completion is informational and does not update task progress automatically.
+- Bulk archive exists, but existing delete buttons still use hard delete.
+- Movement permission metadata exists on buckets, but enforcement is still pending.
+- Task lists still fetch without server-side pagination, so very large datasets may need Phase 2 follow-up optimization.
+- Calendar view groups tasks by end_date/due date and is not yet a full schedule/event module.
+
+2026-05-22 - Enhance task calendar UI and UX
+Files changed:
+  frontend-runtime.out.log
+  frontend/src/components/task/TaskCalendarView.jsx
+  readme.txt
+
+References researched:
+  Microsoft Planner Calendar/Schedule view:
+  https://support.microsoft.com/en-us/planner/training/use-schedule-view-in-microsoft-planner
+  Asana Project Views and Calendar patterns:
+  https://asana.com/features/project-management/project-views
+  Asana calendar visual refresh and color coding:
+  https://asana.com/inside-asana/asana-calendar-color-coding-task-creation
+  Google Calendar view and navigation controls:
+  https://support.google.com/calendar/answer/6110849?co=GENIE.Platform%3DDesktop&hl=en-GB
+
+What changed:
+- Rebuilt TaskCalendarView from a basic task calendar into a more professional scheduling workspace.
+- Added month navigation with Today, previous month, next month, and current month label.
+- Added a Month/Agenda segmented control so users can switch between visual calendar scanning and chronological task review.
+- Added proper Monday-Sunday month grid alignment using start/end week boundaries.
+- Added leading/trailing month days so the calendar layout stays stable and familiar.
+- Added day selection behavior with a selected-day side agenda.
+- Added highlighted today state and selected-day ring to reduce orientation friction.
+- Added compact task chips inside each day cell with status/priority-driven color accents, progress percentage, and hover/focus states.
+- Added due-date and priority-aware task ordering so urgent work appears before lower-priority work on the same date.
+- Added visible task overflow handling with a +N more action to keep dense calendar days readable.
+- Added summary tiles for this month workload, overdue tasks, unscheduled tasks, and busiest day.
+- Added unscheduled task panel so tasks without dates remain visible instead of disappearing from calendar workflows.
+- Added agenda mode for users who need a list-based due-date review instead of a dense month grid.
+- Added responsive behavior: mobile collapses the month grid into stacked day rows while desktop keeps a true 7-column calendar.
+- Updated month navigation so the selected-day agenda follows the selected month context.
+- Preserved existing task click behavior by continuing to call onTaskClick for the existing TaskDetailModal.
+
+Reason:
+- User reported that several UI/UX areas still looked weak, specifically calendar.
+- Microsoft Planner emphasizes calendar visibility for upcoming work, busy periods, schedule gaps, and unscheduled tasks.
+- Asana emphasizes switching between project views, showing relevant task context on cards, using color to scan priority/context, and opening task details from calendar.
+- Google Calendar establishes familiar navigation patterns such as Today and previous/next date controls.
+- The enhancement keeps the current Phase 2 scope intact while making the calendar more usable for real daily planning.
+
+Behavior impact:
+- No backend, schema, or API contract changes.
+- Calendar remains powered by the same task data returned by the current task query.
+- Tasks with end_date are grouped by end_date; tasks without end_date but with start_date use start_date as fallback.
+- Tasks without both start_date and end_date are now surfaced in the Unscheduled Tasks panel.
+- Calendar user experience now supports workload scanning, overdue awareness, selected-day review, and agenda review.
+- Existing task detail modal workflow is preserved.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Verified frontend route:
+  GET http://127.0.0.1:5173/tasks/calendar returns HTTP 200.
+- Checked frontend runtime error log:
+  frontend-runtime.err.log is empty.
+- Frontend dev server received Vite HMR updates while editing TaskCalendarView, refreshing frontend-runtime.out.log.
+
+Known risks:
+- Calendar does not yet support drag-and-drop date rescheduling like Microsoft Planner or Asana.
+- Calendar does not yet support week/day/resource workload views.
+- Inline task creation from a date cell is not yet implemented.
+- Keyboard-first calendar navigation can still be improved in a later accessibility pass.
+- Busiest day and overdue calculations are client-side and may need server-side aggregation if task volume becomes very large.
+
+2026-05-22 - Implement Phase 3 task comments, mentions, read-by, and notification center
+Files changed:
+  backend-runtime.out.log
+  backend/src/config/db.js
+  backend/src/controllers/notificationController.js
+  backend/src/controllers/taskCommentController.js
+  backend/src/database/migrations/20260522_phase3_comments_notifications.sql
+  backend/src/database/schema.sql
+  backend/src/database/seed.sql
+  backend/src/routes/notificationRoutes.js
+  backend/src/routes/taskCommentRoutes.js
+  backend/src/routes/taskRoutes.js
+  backend/src/server.js
+  backend/src/services/commentService.js
+  backend/src/services/notificationService.js
+  backend/src/services/permissionService.js
+  backend/src/services/taskService.js
+  frontend-runtime.out.log
+  frontend/src/app/router.jsx
+  frontend/src/components/layout/Sidebar.jsx
+  frontend/src/components/layout/Topbar.jsx
+  frontend/src/components/notification/NotificationBell.jsx
+  frontend/src/components/task/CommentThread.jsx
+  frontend/src/components/task/TaskDetailModal.jsx
+  frontend/src/logic/services/commentApi.js
+  frontend/src/logic/services/notificationApi.js
+  frontend/src/pages/NotificationsPage.jsx
+  readme.txt
+
+What changed:
+- Added Phase 3 migration 20260522_phase3_comments_notifications.sql.
+- Enhanced task_comments with updated_at, deleted_at, and deleted_by so comments can be edited and soft-deleted.
+- Added comment_mentions for explicit task comment mentions.
+- Added generic read_receipts for read-by tracking, initially used by task comments.
+- Added notifications for in-app notification center entries.
+- Added notification_preferences as the future extension point for per-user notification preferences.
+- Added indexes for task comments, mentions, read receipts, notifications, and notification preferences.
+- Updated schema.sql and seed.sql so fresh database setup includes Phase 3 structures and permission seeds.
+- Added role permissions and fallback permission rules for task_comment and notification resources.
+- Updated verifyApplicationSchema() so backend startup validates Phase 3 tables.
+- Added commentService for list/create/update/delete task comments, mention extraction, mention assignment, read receipts, activity logging, and notification creation.
+- Added notificationService for creating notifications, fan-out to multiple users, unread count, listing notifications, mark-read, and mark-all-read.
+- Added taskCommentController and taskCommentRoutes for comment update/delete/read endpoints.
+- Added notificationController and notificationRoutes for notification center endpoints.
+- Added task comment routes under /api/tasks/:taskId/comments.
+- Updated server.js to register notification and task-comment routes.
+- Updated taskService so task create/update assignment changes create task.assigned notifications.
+- Updated taskService so Waiting Review transitions create task.waiting_review notifications for the task lead.
+- Guarded Waiting Review notifications so normal edits to an already waiting task do not keep creating duplicate approval notifications.
+- Updated taskService so approval creates task.approved notifications for task assignees.
+- Added frontend commentApi and notificationApi service modules.
+- Added CommentThread component inside TaskDetailModal with create, edit, delete, mention picker, read-by popover, and mark-read behavior.
+- Added NotificationBell in Topbar with unread count polling.
+- Added NotificationsPage at /notifications with All/Unread/Read filters, open project action, mark read, and mark all read.
+- Added Notifications navigation to Sidebar and route title mapping in Topbar.
+- Restarted backend runtime so Phase 3 routes are active.
+- Frontend Vite HMR refreshed frontend-runtime.out.log while new components/routes were edited.
+
+Reason:
+- Fase 3 in pengembangan.txt focuses on turning task detail into a real work discussion space.
+- Comments, mentions, read-by, and notifications reduce work communication scattered across WhatsApp or informal channels.
+- Notification center is required before later realtime chat and live updates are introduced in Fase 4.
+- The implementation keeps task/board/list/Gantt behavior intact while adding collaboration around existing task records.
+
+Behavior impact:
+- Users can now add comments directly inside TaskDetailModal.
+- Users can mention teammates from the comment editor; mentioned users receive in-app notifications.
+- Comment readers are tracked with read_receipts and visible through read-by detail in the UI.
+- Comment edits and deletes are allowed for the comment owner and elevated roles.
+- Deleted comments are soft-deleted and no longer shown in normal task comment lists.
+- Users can open /notifications to review task comments, mentions, assignments, waiting review, and approval notifications.
+- Topbar now shows an unread notification count.
+- Task assignment, Waiting Review, and approval workflow now create in-app notifications.
+- Existing activity log behavior is extended with task.comment.create, task.comment.update, and task.comment.delete.
+- No existing task payload shape was intentionally broken.
+- No realtime/socket behavior was added yet; notification count uses periodic polling.
+
+Progress against pengembangan.txt:
+- Fase 3 - Comment, Mention, Read By, Notification Center:
+  Core implementation completed for task comments, mentions, read receipts, notification table/service, notification API, notification center UI, topbar unread indicator, task lifecycle notification hooks, and activity logging.
+- Fase 3 items still pending:
+  notification preferences UI, richer mention autocomplete/search, per-comment visibility observer, notification grouping/batching, object-level project access enforcement, unread indicators inside task list/card, dedicated inbox triage workflow, and realtime delivery.
+- Fase 4 has not started.
+
+Verification:
+- Applied migration through Node/pg:
+  backend/src/database/migrations/20260522_phase3_comments_notifications.sql
+- Ran backend syntax check:
+  Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
+  Result: success.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Restarted backend runtime:
+  Backend: http://127.0.0.1:5000
+- Re-ran backend syntax check and frontend production build after the duplicate Waiting Review notification guard:
+  Result: success.
+- Ran live API smoke test:
+  POST /api/auth/login with superadmin@project-management.local returns HTTP 200 and token.
+  GET /api/users returns HTTP 200.
+  GET /api/tasks?tree=false&include_archived=true returns HTTP 200.
+  POST /api/tasks/:taskId/comments creates a smoke comment with mention_user_ids.
+  GET /api/tasks/:taskId/comments returns the created comment.
+  POST /api/tasks/:taskId/comments/read creates read_receipts.
+  POST /api/auth/login as mentioned user returns HTTP 200 and token.
+  GET /api/notifications?status=unread for mentioned user returns the mention notification.
+  PATCH /api/notifications/:id/read marks the notification read.
+  DELETE /api/task-comments/:id soft-deletes the smoke comment.
+  POST /api/auth/logout revokes both smoke sessions.
+- After final backend restart, verified GET /api/notifications/unread-count with authenticated super admin returns HTTP 200 and unread_count 0.
+- Smoke test summary:
+  task_id 64, comment_id 2, mentioned user agam@modernland.co.id, comments_returned 1, read_receipts_updated 1, mention_notification_found true.
+- Verified frontend routes:
+  GET http://127.0.0.1:5173/notifications returns HTTP 200.
+  GET http://127.0.0.1:5173/tasks returns HTTP 200.
+- Checked runtime error logs:
+  backend-runtime.err.log is empty.
+  frontend-runtime.err.log is empty.
+
+Known risks:
+- Notification delivery is polling-based, not realtime.
+- Notification rows are not grouped or deduplicated, so high activity can create many rows.
+- Mention parsing from typed @text is basic; the reliable path is the explicit mention picker.
+- Read-by is marked when the task comment thread loads, not when each individual comment becomes visible in viewport.
+- Notification preferences are stored structurally but no user-facing settings UI exists yet.
+- Comment attachment support is not included in this phase.
+- Object-level project authorization is still broader role-based access from Phase 1, not fully project-scoped.
+
+2026-05-22 - Improve task edit form UX and preserve approved task status
+Files changed:
+  backend-runtime.out.log
+  backend/src/services/taskService.js
+  frontend/src/components/task/TaskFormModal.jsx
+  readme.txt
+
+What changed:
+- Reworked TaskFormModal layout from one flat two-column form into clearer sections:
+  Task Detail, Structure, Schedule, Workflow, People, and Labels.
+- Increased task form modal width to 2xl so edit forms from Task List have enough working space.
+- Added a compact context summary at the top of the form showing mode, selected project, bucket, and lead.
+- Replaced PIC dropdown with an inline selectable panel that includes selected PIC chips and search.
+- Replaced label dropdown with an inline selectable panel that shows selected label chips and available labels.
+- Cleared selected labels automatically when the user changes project, preventing stale cross-project label IDs.
+- Removed Done from normal editable status choices unless the task is already approved Done, making the review workflow clearer.
+- Added status helper text so Waiting Review and Done states are easier to understand.
+- Kept parent task, project, bucket, PIC, lead, schedule, progress, status, priority, and labels payload behavior aligned with the previous form.
+- Added backend resolveTaskStateForFullUpdate helper so editing a task that is already Done with progress 100 preserves Done instead of accidentally moving it back to Waiting Review.
+
+Reason:
+- User reported that the edit task form in Task List felt awkward.
+- The old form mixed structure, ownership, dates, workflow, and labels in one flat grid, which made editing noisy and hard to scan.
+- The old dropdown-based PIC/label selectors were cramped inside the modal and could feel unstable.
+- Editing an already approved Done task through the full update path could unintentionally convert it back to Waiting Review because updateTask reused the manual completion state resolver.
+
+Behavior impact:
+- User-facing edit form is more structured and easier to scan.
+- PIC and label selection now happen in visible panels instead of hidden dropdown menus.
+- Done tasks can be edited for metadata/text fields without losing their approved Done status.
+- Creating or editing a non-Done task to completion still follows the existing Waiting Review approval workflow.
+- No schema or API route changes.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Ran backend syntax check:
+  Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
+  Result: success.
+- Restarted backend runtime:
+  Backend: http://127.0.0.1:5000
+- Ran live API smoke test:
+  Login as superadmin.
+  Create temporary task in Waiting Review with superadmin as lead and PIC.
+  Approve temporary task so raw_status becomes Done and progress becomes 100.
+  Update temporary task title through PUT /api/tasks/:id.
+  Confirm updated task remains raw_status Done and progress 100.
+  Delete temporary smoke task.
+  Logout.
+- Verified frontend route:
+  GET http://127.0.0.1:5173/tasks returns HTTP 200.
+- Checked runtime error logs:
+  backend-runtime.err.log is empty.
+  frontend-runtime.err.log is empty.
+
+Known risks:
+- The form is still a modal; if task metadata keeps growing, a full-page edit experience may become more appropriate.
+- Label creation still happens outside the edit modal through Task Labels manager.
+- PIC and label panels are visible lists; very large user/label counts may need virtualization or server-side search later.
+
+2026-05-22 - Group sidebar navigation into collapsible sections
+Files changed:
+  frontend/package.json
+  frontend/package-lock.json
+  frontend/src/components/layout/navigationConfig.js
+  frontend/src/components/layout/Sidebar.jsx
+  frontend/src/components/layout/Topbar.jsx
+  readme.txt
+
+What changed:
+- Added a shared navigation configuration for sidebar groups and page metadata so sidebar and topbar no longer duplicate route labels.
+- Reworked the sidebar into collapsible groups:
+  Overview, Work Management, Collaboration, and Administration.
+- Added per-group collapse state persisted in localStorage so the user keeps their preferred sidebar layout across reloads.
+- Added lucide-react icons for sidebar groups, menu items, and the sidebar toggle button.
+- Updated the topbar to show the current section label based on the active route and replaced the text-based sidebar toggle with an icon button.
+- Kept all routes, access flow, and business behavior unchanged.
+
+Reason:
+- The sidebar had too many flat menu entries, which made navigation feel crowded and harder to scan.
+- Grouping related menus reduces cognitive load and makes it clearer where users should go for work, collaboration, or administration tasks.
+- Centralizing navigation metadata also makes future menu updates safer and easier to maintain.
+
+Behavior impact:
+- No backend, database, API, or permission changes.
+- Sidebar navigation is now visually grouped and collapsible.
+- The active workspace section is more visible in the topbar.
+- The selected collapse state survives browser reloads on the same device.
+
+Verification:
+- Ran frontend dependency install:
+  cd frontend
+  npm install lucide-react
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+
+Known risks:
+- Any future route additions should be registered in the shared navigation config so sidebar grouping and topbar titles stay aligned.
+- Very small screens still rely on the existing mobile navigation shortcuts, since the full sidebar remains desktop-only.
+
+2026-05-22 - Replace notification shortcut label with bell icon
+Files changed:
+  frontend/src/components/notification/NotificationBell.jsx
+  readme.txt
+
+What changed:
+- Replaced the notification shortcut text marker with a lucide-react Bell icon.
+- Kept the unread count badge and notification link behavior unchanged.
+- Added an accessible aria-label to the notification shortcut.
+
+Reason:
+- The previous single-letter marker was unclear and did not visually read as a notification control.
+- A bell icon is a more familiar and faster-to-scan affordance for the notification center.
+
+Behavior impact:
+- No backend, database, API, or routing changes.
+- The button now communicates its function more clearly in the topbar.
+- Notification unread badge and navigation behavior remain the same.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+
+Known risks:
+- None beyond the existing notification polling behavior.
+
+2026-05-22 - Move task label master management to Projects page
+Files changed:
+  frontend/src/components/task/TaskLabelManager.jsx
+  frontend/src/pages/MyTasksPage.jsx
+  frontend/src/pages/ProjectsPage.jsx
+  frontend/src/pages/TaskListPage.jsx
+  readme.txt
+
+What changed:
+- Removed the TaskLabelManager panel from TaskListPage so Task List is focused on task execution, filtering, and bulk actions.
+- Removed the unused showLabelManager prop from MyTasksPage usage.
+- Added a Master Task Labels panel to ProjectsPage.
+- Added a project selector inside ProjectsPage label management so labels remain managed per project.
+- Kept the master label project selector independent from the visible project card filters, so labels can be managed for any project from the Projects menu.
+- Updated TaskLabelManager so it can render as embedded content without creating a nested card.
+
+Reason:
+- User requested master label creation to move out of Task List and into the Projects menu.
+- Labels are project-scoped metadata, so Projects is a clearer ownership location than the task execution list.
+- Keeping Task List focused on operational task work reduces UI noise and avoids confusing master-data management with daily execution.
+
+Behavior impact:
+- No backend, database, API, permission, task, or label contract changes.
+- Users now create and delete task labels from Projects.
+- Task List still uses labels for filtering and task forms, but no longer exposes master label creation.
+- Existing label assignments and project-scoped label behavior are preserved.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+
+Known risks:
+- ProjectsPage now makes a separate project-list request for the master label selector so label management is not constrained by portfolio filters.
+
+2026-05-22 - Add initial performance report module
+Files changed:
+  backend/src/controllers/performanceController.js
+  backend/src/routes/performanceRoutes.js
+  backend/src/server.js
+  backend/src/services/performanceService.js
+  frontend/src/app/router.jsx
+  frontend/src/components/layout/navigationConfig.js
+  frontend/src/logic/services/performanceApi.js
+  frontend/src/pages/PerformancePage.jsx
+  readme.txt
+
+What changed:
+- Added backend performance report endpoints under /api/performance:
+  GET /api/performance/users
+  GET /api/performance/users/:userId
+  GET /api/performance/departments
+  GET /api/performance/bottlenecks
+  GET /api/performance/export
+- Added performanceService to aggregate assigned tasks per user from task_assignees and legacy tasks.assignee_id without double-counting the same user-task pair.
+- Added period, department, and project filters for backend performance calculations.
+- Added transparent score calculation using base score, completed bonus, healthy in-progress bonus, overdue penalty, stale penalty, and no-due-date penalty.
+- Added rating output:
+  Bagus for score >= 80.
+  Cukup for score >= 60 and < 80.
+  Kurang for score < 60.
+  No Data when the user has no assigned task in the selected period.
+- Added automatic recommendations for high overdue, not-started, waiting-review, stale, and no-due-date ratios.
+- Added bottleneck detection for overdue, stale in-progress, waiting-review, and no-deadline tasks.
+- Added CSV export for the user performance list.
+- Added frontend Performance Report page at /performance with period filter, department filter, summary metrics, user table, user detail, score formula breakdown, category task drill-down, department summary, top bottleneck list, and CSV export.
+- Added Performance menu item to the Work Management sidebar group and page metadata.
+
+Reason:
+- The roadmap identifies performance report as a high-value management feature after task execution, approval, activity, comments, notifications, labels, and checklist data are available.
+- Management needs a transparent per-user report that converts existing task data into score, rating, recommendations, and bottleneck visibility without manual recap.
+- The score formula intentionally shows raw counts and components so the rating is not treated as a hidden or punitive black box.
+
+Behavior impact:
+- No existing task, project, Gantt, comment, notification, approval, or label behavior changed.
+- Authenticated users with read permission can access the new performance endpoints through the existing permission middleware.
+- Performance report includes active users; users without task data are shown as No Data instead of being penalized.
+- A task assigned through both task_assignees and the legacy assignee_id column is counted once for that user.
+- Bottleneck and overdue calculations use the selected report end date as the report cutoff.
+- CSV export returns text/csv instead of the standard JSON response wrapper by design.
+
+Verification:
+- Ran backend syntax checks:
+  cd backend
+  node --check src/services/performanceService.js
+  node --check src/controllers/performanceController.js
+  node --check src/routes/performanceRoutes.js
+  node --check src/server.js
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+- Ran performance service database validation:
+  cd backend
+  node -e "...getPerformanceUsers and getPerformanceBottlenecks..."
+  Result: {"users":16,"total_tasks":29,"bottlenecks":3}
+- Ran department, user detail, and CSV validation:
+  cd backend
+  node -e "...getDepartmentPerformance, getUserPerformance, getPerformanceExport..."
+  Result: {"departments":7,"user":"Rey","csv_bytes":2507}
+- Restarted backend on:
+  http://localhost:5000
+- Tested authenticated HTTP endpoint:
+  POST http://localhost:5000/api/auth/login
+  GET http://localhost:5000/api/performance/users
+  GET http://localhost:5000/api/performance/bottlenecks?limit=2
+  Result: users=16, total_tasks=29, bottlenecks=2.
+- Tested frontend route:
+  GET http://localhost:5173/performance
+  Result: HTTP 200.
+
+Known risks:
+- The first version calculates report data live from task tables; very large datasets may later need materialized snapshots or indexed reporting tables.
+- The formula is intentionally simple and should be reviewed with business stakeholders before being used as a formal HR evaluation.
+- Export is CSV only; Excel/PDF export remains future work.
+
+2026-05-22 - Implement Phase 4 realtime update and project chat
+Files changed:
+  backend/package.json
+  backend/package-lock.json
+  backend/src/config/db.js
+  backend/src/controllers/chatController.js
+  backend/src/database/migrations/20260522_phase4_realtime_chat.sql
+  backend/src/database/schema.sql
+  backend/src/database/seed.sql
+  backend/src/routes/chatRoutes.js
+  backend/src/server.js
+  backend/src/services/chatService.js
+  backend/src/services/commentService.js
+  backend/src/services/notificationService.js
+  backend/src/services/permissionService.js
+  backend/src/services/realtimeService.js
+  backend/src/services/taskService.js
+  frontend/package.json
+  frontend/package-lock.json
+  frontend-runtime.out.log
+  frontend/src/app/App.jsx
+  frontend/src/components/chat/ChatRoomList.jsx
+  frontend/src/components/chat/ChatWindow.jsx
+  frontend/src/components/chat/ProjectChatTab.jsx
+  frontend/src/components/notification/NotificationBell.jsx
+  frontend/src/components/realtime/RealtimeBridge.jsx
+  frontend/src/components/task/CommentThread.jsx
+  frontend/src/logic/hooks/useTasks.js
+  frontend/src/logic/services/chatApi.js
+  frontend/src/logic/services/realtimeApi.js
+  frontend/src/pages/NotificationsPage.jsx
+  frontend/src/pages/ProjectDetailPage.jsx
+  readme.txt
+
+What changed:
+- Reviewed readme.txt and pengembangan.txt before implementation.
+- Confirmed current roadmap status:
+  Fase 1 core implementation already completed for auth, session, RBAC, and activity audit.
+  Fase 2 core implementation already completed for My Tasks, task labels, checklists, calendar view, and bulk actions.
+  Fase 3 core implementation already completed for comments, mentions, read-by, notifications, and notification center.
+  Fase 4 had not started before this change.
+  Fase 7 initial performance report had already been added earlier, out of roadmap order, and was left intact because it does not change old behavior.
+- Added backend dependency socket.io.
+- Added frontend dependency socket.io-client.
+- Added Phase 4 migration 20260522_phase4_realtime_chat.sql.
+- Added chat_rooms, chat_room_members, and chat_messages tables.
+- Added chat read receipt support using existing read_receipts with object_type = chat_message.
+- Added indexes, project-chat uniqueness, updated_at trigger, and chat role permissions.
+- Updated schema.sql and seed.sql so fresh database setup includes Phase 4 chat structures and permissions.
+- Updated verifyApplicationSchema so backend startup validates chat tables.
+- Changed backend server startup from Express app.listen to an HTTP server shared by Express and Socket.IO.
+- Added realtimeService with socket auth using the existing Bearer session token.
+- Socket connections now join user:<id>, department:<id>, project:<id>, and chat:<roomId> rooms where the user has access.
+- Added socket join handlers for project:join, task:join, and chat:join.
+- Added chatService, chatController, and chatRoutes under /api/chat:
+  GET /api/chat/rooms
+  POST /api/chat/rooms
+  GET /api/chat/rooms/:roomId/messages
+  POST /api/chat/rooms/:roomId/messages
+  POST /api/chat/rooms/:roomId/read
+  PATCH /api/chat/messages/:id
+  DELETE /api/chat/messages/:id
+  POST /api/chat/messages/:id/read
+- Project chat room is created automatically when the project chat tab is opened.
+- Project chat members are synchronized from project owner, project_members, task assignees, task lead, task creator, and the current user.
+- Chat message creation logs activity, marks the sender read, creates chat.message notifications for other members, and emits chat.message.created.
+- Chat read receipt updates emit chat.message.read.
+- Notification creation now emits notification.created to the target user room.
+- Task comment creation now emits comment.created to project and task rooms.
+- Task comment read updates now emit comment.read.
+- Task create/update/status/progress/realization/approval/parent/bulk changes now emit task.updated.
+- Task board move now emits task.moved.
+- Added frontend realtimeApi singleton for Socket.IO client connection.
+- Added RealtimeBridge so authenticated users connect once after login and dispatch realtime:* browser events.
+- NotificationBell now refreshes unread count immediately on notification.created while keeping polling fallback.
+- NotificationsPage now refreshes immediately on notification.created.
+- CommentThread now joins the active task socket room and refreshes on comment.created/comment.read events.
+- useTasks and useProjectTasks now refresh on task.updated/task.moved events.
+- Added Chat tab in ProjectDetailPage.
+- Added ProjectChatTab, ChatRoomList, and ChatWindow components for project chat, message composer, read-by summary, delete action, and realtime refresh.
+
+Reason:
+- Fase 4 in pengembangan.txt requires realtime update and project chat after comment, notification, auth, permission, and audit foundations are available.
+- Realtime delivery reduces manual refresh for board movement, task updates, comments, notifications, and chat.
+- Project chat gives each project a focused coordination channel without replacing task as the source of truth.
+
+Behavior impact:
+- Existing REST API behavior remains available; Socket.IO is additive.
+- Existing polling notification behavior remains as fallback.
+- Opening a project Chat tab can create a project chat room if one does not exist.
+- Sending chat messages creates in-app notifications for other room members.
+- Users connected through Socket.IO receive realtime events for notification, comment, task, and chat changes.
+- Project board/list data can refresh automatically when another user moves or updates tasks.
+- Chat messages are soft-deleted when deleted.
+- No Gantt calculation, task progress rollup, approval, label, checklist, project, or performance report behavior was intentionally changed.
+
+Progress against pengembangan.txt:
+- Fase 4 - Realtime Update dan Project Chat:
+  Core implementation completed for Socket.IO dependency, HTTP server wiring, socket auth, socket rooms, chat tables, chat service/routes, project chat UI, realtime notification events, realtime comment events, realtime task update/move events, realtime chat message events, and chat read receipts.
+- Fase 4 items still pending:
+  private chat, department/company chat UI, message edit UI, richer member management UI, typing indicators, online presence, unread indicators inside sidebar/project cards, attachment/media support, and multi-browser manual verification with two real logged-in users.
+
+Verification:
+- Installed backend dependency:
+  cd backend
+  npm install socket.io
+- Installed frontend dependency:
+  cd frontend
+  npm install socket.io-client
+- Ran backend syntax check:
+  cd backend
+  Get-ChildItem -Recurse -Filter *.js src | ForEach-Object { node --check $_.FullName }
+  Result: success.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success.
+  Note: Vite warns that one generated chunk is larger than 500 kB after minification.
+- Applied migration through Node/pg:
+  backend/src/database/migrations/20260522_phase4_realtime_chat.sql
+  Result: phase4 migration applied.
+- Restarted backend runtime:
+  Backend: http://localhost:5000
+- Restarted frontend runtime:
+  Frontend: http://localhost:5173
+- Ran backend production dependency audit:
+  cd backend
+  npm audit --omit=dev
+  Result: found 0 vulnerabilities.
+- Ran frontend production dependency audit:
+  cd frontend
+  npm audit --omit=dev
+  Result: found 0 vulnerabilities.
+- Ran live chat REST smoke test:
+  POST /api/auth/login returns HTTP 200 and token.
+  GET /api/projects returns project list.
+  POST /api/chat/rooms creates or returns project chat room.
+  POST /api/chat/rooms/:roomId/messages creates a chat message.
+  GET /api/chat/rooms/:roomId/messages returns the message.
+  POST /api/chat/rooms/:roomId/read creates chat read receipts.
+  Result: project_id=26, room_id=1, message_id=1, messages=1, read_updated=1.
+- Ran Socket.IO auth smoke test:
+  Connect with login token.
+  Server emits realtime.connected.
+  chat:join for room 1 returns success.
+- Ran Socket.IO event smoke test:
+  Connect with login token.
+  Join chat room 1.
+  POST a chat message via REST.
+  Client receives chat.message.created.
+  Result: {"room_id":1,"message_id":2}
+- Tested frontend project route:
+  GET http://localhost:5173/projects/26
+  Result: HTTP 200.
+
+Known risks:
+- Realtime smoke test was automated with one authenticated user; full acceptance still needs two browser sessions with two users.
+- Project chat membership is synchronized from current project/task participation, but there is no manual member management UI yet.
+- Chat messages currently support text only; attachments/media are future work.
+- Socket.IO adds runtime state; production deployment will need sticky sessions or a Socket.IO adapter if scaled beyond one Node process.
+- The frontend bundle is now above Vite's default chunk warning threshold; code splitting should be considered during production hardening.
+
 
 Required future change log format
 ---------------------------------
@@ -3644,3 +4546,111 @@ Verification:
 
 Known risks:
 - Any limitations, untested paths, or follow-up work.
+
+
+2026-05-22 - Temporary public Cloudflare tunnel for remote access
+Files changed:
+  frontend/vite.config.js
+  readme.txt
+
+Files created or generated:
+  .tools/cloudflared.exe
+  cloudflared-backend.err.log
+  cloudflared-frontend.err.log
+  frontend-runtime.out.log
+
+What changed:
+- Downloaded portable Cloudflare Tunnel binary to `.tools/cloudflared.exe`.
+- Started a temporary Cloudflare quick tunnel from the public internet to the local backend:
+  https://percentage-reasoning-officially-cheque.trycloudflare.com -> http://localhost:5000
+- Started a temporary Cloudflare quick tunnel from the public internet to the local frontend:
+  https://assets-something-journal-ellis.trycloudflare.com -> http://localhost:5173
+- Restarted backend with:
+  FRONTEND_URL=https://assets-something-journal-ellis.trycloudflare.com
+- Restarted frontend with:
+  VITE_API_BASE_URL=https://percentage-reasoning-officially-cheque.trycloudflare.com/api
+  VITE_SOCKET_URL=https://percentage-reasoning-officially-cheque.trycloudflare.com
+- Updated Vite dev server config to listen on `0.0.0.0`, use port `5173`, and allow `.trycloudflare.com` hosts.
+
+Reason:
+- The application needed a temporary public link so a remote user outside the local network can access the frontend and send updates to the local backend/database.
+
+Behavior impact:
+- Remote users can open the public frontend URL and use the app through the internet while the local PC, backend, frontend dev server, PostgreSQL, and both Cloudflare tunnel processes are running.
+- Data created or updated through the public frontend still goes through the local Express backend and is saved into the local PostgreSQL database configured in `backend/.env`.
+- No database schema or API contract was changed for this tunnel setup.
+
+Verification:
+- Confirmed local backend listener on port `5000`.
+- Confirmed local frontend listener on port `5173`.
+- Confirmed Cloudflare tunnel processes are running.
+- Tested public frontend URL:
+  GET https://assets-something-journal-ellis.trycloudflare.com/
+  Result: HTTP 200.
+- Tested backend CORS preflight from public frontend origin:
+  OPTIONS https://percentage-reasoning-officially-cheque.trycloudflare.com/api/auth/login
+  Result: HTTP 204 with Access-Control-Allow-Origin set to the public frontend URL.
+- Earlier smoke testing also confirmed public backend login and frontend environment variables pointed to the public backend/socket URL.
+
+Known risks:
+- This is a temporary development tunnel, not a production deployment.
+- The public URLs are valid only while the related `cloudflared` processes keep running.
+- The link stops working if the PC/server is turned off, internet disconnects, backend stops, frontend dev server stops, PostgreSQL stops, or the tunnel processes stop.
+- Anyone who has the frontend URL can reach the login page, so do not share it broadly.
+- For production use, replace this with a proper deployment using a domain, HTTPS, secure authentication, database backup, firewall rules, and managed process supervision.
+
+
+2026-05-22 - Roll back public tunnel and return to local network access
+Files changed:
+  frontend/vite.config.js
+  readme.txt
+
+Files removed:
+  .tools/cloudflared.exe
+  cloudflared-backend.err.log
+  cloudflared-backend.log
+  cloudflared-frontend.err.log
+  cloudflared-frontend.log
+
+What changed:
+- Stopped the temporary Cloudflare Tunnel processes that exposed the local frontend and backend to the public internet.
+- Removed the portable Cloudflare Tunnel binary and generated tunnel log files.
+- Removed the Vite `allowedHosts` entry for `.trycloudflare.com`.
+- Kept Vite listening on `0.0.0.0:5173` so the app can still be opened from another device on the same local network.
+- Restarted the backend and frontend for LAN-only usage.
+
+Reason:
+- User requested cancelling the public remote link and using local network access only through:
+  http://192.168.34.48:5173/
+
+Behavior impact:
+- The app is no longer intentionally exposed through the public Cloudflare URLs.
+- Devices on the same local network can open `http://192.168.34.48:5173/`.
+- When opened through `192.168.34.48`, the frontend API and realtime clients derive the backend address from the browser hostname and call:
+  http://192.168.34.48:5000/api
+  http://192.168.34.48:5000
+- Data updates still go into the same local PostgreSQL database through the local Express backend.
+
+Verification:
+- Confirmed no `cloudflared` process is running.
+- Confirmed local frontend listener on `0.0.0.0:5173`.
+- Confirmed local backend listener on port `5000`.
+- Tested frontend LAN URL:
+  GET http://192.168.34.48:5173/
+  Result: HTTP 200.
+- Tested backend health through LAN IP:
+  GET http://192.168.34.48:5000/
+  Result: HTTP 200.
+- Tested backend CORS preflight from LAN frontend origin:
+  OPTIONS http://192.168.34.48:5000/api/auth/login
+  Origin: http://192.168.34.48:5173
+  Result: HTTP 204 with Access-Control-Allow-Origin set to the LAN frontend URL.
+- Tested login through LAN backend URL:
+  POST http://192.168.34.48:5000/api/auth/login
+  Result: HTTP 200 with token.
+
+Known risks:
+- This LAN URL only works for devices that can reach the same local network or VPN.
+- Windows Firewall, antivirus firewall, router isolation, or a changed local IP can block access.
+- If the PC/server, PostgreSQL, backend, or frontend dev server stops, the LAN link stops working.
+- For stable internal usage, reserve a fixed local IP or DHCP reservation for this machine.

@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 
 import { formatDate } from '../../logic/helpers/dateHelper';
+import { getTaskLabelBadgeClass } from '../../logic/helpers/taskLabelHelper';
 import { countSubtasks } from '../../logic/helpers/taskTreeHelper';
 import { getPriorityBadgeClass, getProgressBarClass, getStatusBadgeClass } from '../../logic/helpers/statusHelper';
 import { getTaskAssigneeNames, getTaskLeadName } from '../../logic/helpers/taskPeopleHelper';
@@ -31,7 +32,23 @@ function TaskCard({ task, onClick, draggable = false }) {
       <div className="mt-3 flex flex-wrap gap-2">
         <span className={`badge ${getStatusBadgeClass(task.status)}`}>{task.status}</span>
         {subtaskCount ? <span className="badge bg-slate-100 text-slate-700">{subtaskCount} subtasks</span> : null}
+        {task.checklist_total ? (
+          <span className="badge bg-slate-100 text-slate-700">
+            {task.checklist_completed || 0}/{task.checklist_total} checklist
+          </span>
+        ) : null}
       </div>
+
+      {task.labels?.length ? (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {task.labels.slice(0, 3).map((label) => (
+            <span key={label.id} className={`badge px-1.5 py-0.5 text-[10px] ${getTaskLabelBadgeClass(label.color)}`}>
+              {label.name}
+            </span>
+          ))}
+          {task.labels.length > 3 ? <span className="badge px-1.5 py-0.5 text-[10px] bg-slate-100 text-slate-700">+{task.labels.length - 3}</span> : null}
+        </div>
+      ) : null}
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
         <div className="min-w-0">

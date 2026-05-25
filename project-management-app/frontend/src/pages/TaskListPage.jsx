@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import TaskBulkToolbar from '../components/task/TaskBulkToolbar';
 import TaskFilters from '../components/task/TaskFilters';
 import TaskFormModal from '../components/task/TaskFormModal';
 import TaskRealizationManualModal from '../components/task/TaskRealizationManualModal';
 import TaskTree from '../components/task/TaskTree';
 import { useDepartments } from '../logic/hooks/useDepartments';
 import { useLocations } from '../logic/hooks/useLocations';
-import { useProject, useProjects } from '../logic/hooks/useProjects';
+import { useBuckets, useProject, useProjects } from '../logic/hooks/useProjects';
+import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useTasks } from '../logic/hooks/useTasks';
 import { useUsers } from '../logic/hooks/useUsers';
 import { getApiErrorMessage } from '../logic/services/api';
@@ -15,9 +17,16 @@ import { approveTask, createTask, deleteTask, updateTask, updateTaskRealization 
 import { useUiStore } from '../store/uiStore';
 
 // Halaman Task List untuk melihat task bertingkat dan mengelola task/subtask.
-function TaskListPage() {
+function TaskListPage({
+  defaultFilters = {},
+  title,
+  description = 'Tree task dan subtask bertingkat untuk data yang sama dengan Board dan Gantt.',
+  kicker = 'Execution',
+  hideFilters = false,
+}) {
   const { projectId } = useParams();
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState(defaultFilters);
+  const [selectedTaskIds, setSelectedTaskIds] = useState(new Set());
   const [editingTask, setEditingTask] = useState(null);
   const [parentTask, setParentTask] = useState(null);
   const [manualRealizationTask, setManualRealizationTask] = useState(null);
@@ -27,14 +36,41 @@ function TaskListPage() {
     project_id: projectId || filters.project_id || '',
     tree: true,
   };
+  const selectedProjectId = projectId || filters.project_id || '';
   const { tasks, loading, error, refetch } = useTasks(queryFilters);
   const { project } = useProject(projectId);
   const { projects } = useProjects();
+  const { buckets } = useBuckets(selectedProjectId);
+  const { labels } = useTaskLabels(selectedProjectId);
   const { departments } = useDepartments();
   const { locations } = useLocations();
   const { users } = useUsers();
   const showToast = useUiStore((state) => state.showToast);
   const currentUserId = useUiStore((state) => state.currentUserId);
+
+  const refreshTasks = async () => {
+    setSelectedTaskIds(new Set());
+    await refetch();
+  };
+
+  const handleFilterChange = (nextFilters) => {
+    setSelectedTaskIds(new Set());
+    setFilters(nextFilters);
+  };
+
+  const toggleTaskSelection = (taskId, checked) => {
+    setSelectedTaskIds((current) => {
+      const next = new Set(current);
+
+      if (checked) {
+        next.add(Number(taskId));
+      } else {
+        next.delete(Number(taskId));
+      }
+
+      return next;
+    });
+  };
 
   // Membuka form untuk membuat task utama baru.
   const openCreateModal = () => {
@@ -53,7 +89,7 @@ function TaskListPage() {
     try {
       await approveTask(task.id, currentUserId);
       showToast({ type: 'success', message: 'Task diapprove.' });
-      refetch();
+      await refreshTasks();
     } catch (err) {
       showToast({ type: 'error', message: getApiErrorMessage(err) });
     }
@@ -77,7 +113,7 @@ function TaskListPage() {
       setModalOpen(false);
       setEditingTask(null);
       setParentTask(null);
-      refetch();
+      await refreshTasks();
     } catch (err) {
       showToast({ type: 'error', message: getApiErrorMessage(err) });
     }
@@ -92,7 +128,7 @@ function TaskListPage() {
     try {
       await deleteTask(task.id);
       showToast({ type: 'success', message: 'Task dihapus.' });
-      refetch();
+      await refreshTasks();
     } catch (err) {
       showToast({ type: 'error', message: getApiErrorMessage(err) });
     }
@@ -108,7 +144,7 @@ function TaskListPage() {
     try {
       await updateTaskRealization(task.id, { action, actor_user_id: currentUserId });
       showToast({ type: 'success', message: action === 'start' ? 'Realisasi task dimulai.' : 'Realisasi task diselesaikan.' });
-      refetch();
+      await refreshTasks();
     } catch (err) {
       showToast({ type: 'error', message: getApiErrorMessage(err) });
     }
@@ -129,7 +165,7 @@ function TaskListPage() {
       await updateTaskRealization(manualRealizationTask.id, { action: 'manual', actor_user_id: currentUserId, ...payload });
       showToast({ type: 'success', message: 'Realisasi manual task disimpan.' });
       setManualRealizationTask(null);
-      refetch();
+      await refreshTasks();
     } catch (err) {
       showToast({ type: 'error', message: getApiErrorMessage(err) });
     }
@@ -139,9 +175,9 @@ function TaskListPage() {
     <div className="page-shell">
       <div className="page-header">
         <div>
-          <p className="page-kicker">Execution</p>
-          <h1 className="page-title">{project ? `${project.name} Task List` : 'Task List'}</h1>
-          <p className="page-description">Tree task dan subtask bertingkat untuk data yang sama dengan Board dan Gantt.</p>
+          <p className="page-kicker">{kicker}</p>
+          <h1 className="page-title">{title || (project ? `${project.name} Task List` : 'Task List')}</h1>
+          <p className="page-description">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link className="btn-secondary" to={projectId ? `/projects/${projectId}/gantt` : '/gantt'}>
@@ -153,14 +189,31 @@ function TaskListPage() {
         </div>
       </div>
 
-      {!projectId ? (
-        <TaskFilters filters={filters} projects={projects} departments={departments} locations={locations} users={users} onChange={setFilters} />
+      {!projectId && !hideFilters ? (
+        <TaskFilters
+          departments={departments}
+          filters={filters}
+          labels={labels}
+          locations={locations}
+          projects={projects}
+          users={users}
+          onChange={handleFilterChange}
+        />
       ) : null}
+
+      <TaskBulkToolbar
+        buckets={buckets}
+        selectedTaskIds={Array.from(selectedTaskIds)}
+        onChanged={refreshTasks}
+        onCleared={() => setSelectedTaskIds(new Set())}
+      />
 
       {loading ? <div className="card p-6 text-text-muted">Loading tasks...</div> : null}
       {error ? <div className="card p-6 text-danger">{error}</div> : null}
       <TaskTree
         tasks={tasks}
+        selectedTaskIds={selectedTaskIds}
+        onSelectionChange={toggleTaskSelection}
         onApprove={handleApprove}
         onDelete={handleDelete}
         onEdit={(task) => {
@@ -185,6 +238,7 @@ function TaskListPage() {
         projects={projects}
         users={users}
         tasks={tasks}
+        labels={labels}
         onClose={() => {
           setModalOpen(false);
           setEditingTask(null);

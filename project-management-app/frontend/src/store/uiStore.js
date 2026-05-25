@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 const AUTH_USER_STORAGE_KEY = 'project-management-auth-user';
+const AUTH_TOKEN_STORAGE_KEY = 'project-management-auth-token';
 const CURRENT_USER_ID_STORAGE_KEY = 'project-management-current-user-id';
 const SIDEBAR_HIDDEN_STORAGE_KEY = 'project-management-sidebar-hidden';
 
@@ -20,6 +21,14 @@ const getStoredCurrentUser = () => {
 
 const storedCurrentUser = getStoredCurrentUser();
 
+const getStoredAuthToken = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '';
+};
+
 const getStoredSidebarHidden = () => {
   if (typeof window === 'undefined') {
     return false;
@@ -30,12 +39,13 @@ const getStoredSidebarHidden = () => {
 
 // Store kecil untuk menampilkan toast/notifikasi singkat di seluruh aplikasi.
 export const useUiStore = create((set) => ({
+  authToken: getStoredAuthToken(),
   currentUser: storedCurrentUser,
   currentUserId: storedCurrentUser?.id ? String(storedCurrentUser.id) : '',
   isSidebarHidden: getStoredSidebarHidden(),
   toast: null,
   // Menyimpan user hasil login agar approval dan aktivitas memakai identitas yang sama.
-  setAuthenticatedUser: (user) => {
+  setAuthenticatedUser: (user, token = '') => {
     const normalizedUser = user
       ? {
           ...user,
@@ -47,13 +57,17 @@ export const useUiStore = create((set) => ({
       if (normalizedUser) {
         window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(normalizedUser));
         window.localStorage.setItem(CURRENT_USER_ID_STORAGE_KEY, normalizedUser.id);
+        if (token) {
+          window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+        }
       } else {
         window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
         window.localStorage.removeItem(CURRENT_USER_ID_STORAGE_KEY);
       }
     }
 
-    set({ currentUser: normalizedUser, currentUserId: normalizedUser?.id || '' });
+    set({ authToken: token, currentUser: normalizedUser, currentUserId: normalizedUser?.id || '' });
   },
   // Menyimpan user aktif lokal untuk kompatibilitas komponen lama.
   setCurrentUserId: (userId) => {
@@ -73,10 +87,11 @@ export const useUiStore = create((set) => ({
   logout: () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
       window.localStorage.removeItem(CURRENT_USER_ID_STORAGE_KEY);
     }
 
-    set({ currentUser: null, currentUserId: '' });
+    set({ authToken: '', currentUser: null, currentUserId: '' });
   },
   // Menyimpan preferensi tampilan sidebar agar halaman bisa memakai ruang kerja lebih lebar.
   setSidebarHidden: (isHidden) => {

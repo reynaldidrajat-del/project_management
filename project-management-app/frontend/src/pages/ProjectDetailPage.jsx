@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import BoardView from '../components/board/BoardView';
+import ProjectActivityFeed from '../components/activity/ProjectActivityFeed';
+import ProjectChatTab from '../components/chat/ProjectChatTab';
 import GanttChart from '../components/gantt/GanttChart';
 import BucketManager from '../components/project/BucketManager';
 import ProjectHeader from '../components/project/ProjectHeader';
+import TaskCalendarView from '../components/task/TaskCalendarView';
 import TaskDetailModal from '../components/task/TaskDetailModal';
 import TaskFormModal from '../components/task/TaskFormModal';
 import TaskRealizationManualModal from '../components/task/TaskRealizationManualModal';
 import TaskTree from '../components/task/TaskTree';
 import { useProject, useBuckets, useProjects } from '../logic/hooks/useProjects';
+import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useProjectTasks } from '../logic/hooks/useTasks';
 import { useUsers } from '../logic/hooks/useUsers';
 import { getApiErrorMessage } from '../logic/services/api';
@@ -17,7 +21,7 @@ import { approveTask, createTask, deleteTask, updateTask, updateTaskRealization 
 import { useUiStore } from '../store/uiStore';
 
 // Daftar tab yang tersedia di halaman detail project.
-const tabs = ['Board', 'List', 'Gantt', 'Activity'];
+const tabs = ['Board', 'List', 'Calendar', 'Gantt', 'Activity', 'Chat'];
 
 // Halaman detail project yang menyatukan Board, List, Gantt, dan Activity.
 function ProjectDetailPage() {
@@ -33,18 +37,40 @@ function ProjectDetailPage() {
   const { projects } = useProjects();
   const { users } = useUsers();
   const { buckets, refetch: refetchBuckets } = useBuckets(projectId);
+  const { labels, refetch: refetchLabels } = useTaskLabels(projectId);
   const { tasks, loading: tasksLoading, refetch } = useProjectTasks(projectId, { tree: true });
   const showToast = useUiStore((state) => state.showToast);
   const currentUserId = useUiStore((state) => state.currentUserId);
 
+  useEffect(() => {
+    const handleRealtimeTaskEvent = (event) => {
+      const payload = event.detail;
+
+      if (Number(payload?.project_id) !== Number(projectId)) {
+        return;
+      }
+
+      refreshProjectWorkspace();
+    };
+
+    window.addEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+    window.addEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+
+    return () => {
+      window.removeEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+      window.removeEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
+
   // Memuat ulang semua data penting setelah task berubah.
   const refreshProjectWorkspace = async () => {
-    await Promise.all([refetch(), refetchProject()]);
+    await Promise.all([refetch(), refetchProject(), refetchLabels()]);
   };
 
   // Memuat ulang bucket dan task untuk board.
   const refreshBucketsAndTasks = async () => {
-    await Promise.all([refetchBuckets(), refetch()]);
+    await Promise.all([refetchBuckets(), refetchLabels(), refetch()]);
   };
 
   // Membuat atau mengubah task dari modal form.
@@ -196,6 +222,7 @@ function ProjectDetailPage() {
           onManualRealization={setManualRealizationTask}
         />
       ) : null}
+      {activeTab === 'Calendar' ? <TaskCalendarView tasks={tasks} onTaskClick={setSelectedTask} /> : null}
       {activeTab === 'Gantt' ? (
         <div className="space-y-3">
           <div className="toolbar justify-end">
@@ -208,14 +235,14 @@ function ProjectDetailPage() {
         </div>
       ) : null}
       {activeTab === 'Activity' ? (
-        <div className="empty-state">
-          Activity log table sudah disiapkan di database untuk audit trail. Endpoint activity dapat ditambahkan saat workflow approval/import Excel masuk fase berikutnya.
-        </div>
+        <ProjectActivityFeed projectId={projectId} />
       ) : null}
+      {activeTab === 'Chat' ? <ProjectChatTab project={project} /> : null}
 
       <TaskDetailModal
         task={selectedTask}
         projects={projects}
+        labels={labels}
         users={users}
         tasks={tasks}
         onClose={() => setSelectedTask(null)}
@@ -227,6 +254,7 @@ function ProjectDetailPage() {
         parentTask={parentTask}
         defaultProjectId={projectId}
         projects={projects}
+        labels={labels}
         users={users}
         tasks={tasks}
         onClose={() => {

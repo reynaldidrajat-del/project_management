@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import ProjectCard from '../components/project/ProjectCard';
 import ProjectFormModal from '../components/project/ProjectFormModal';
+import TaskLabelManager from '../components/task/TaskLabelManager';
 import { PROJECT_STATUSES } from '../logic/constants/status';
 import { useLocations } from '../logic/hooks/useLocations';
 import { useProjects } from '../logic/hooks/useProjects';
+import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useUsers } from '../logic/hooks/useUsers';
 import { getApiErrorMessage } from '../logic/services/api';
 import { createProject, deleteProject, updateProject } from '../logic/services/projectApi';
@@ -23,13 +25,31 @@ const initialFilters = {
 function ProjectsPage() {
   const [filters, setFilters] = useState(initialFilters);
   const [editingProject, setEditingProject] = useState(null);
+  const [labelProjectId, setLabelProjectId] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
   const hasActiveFilters = Object.keys(activeFilters).length > 0;
   const { projects, loading, error, refetch } = useProjects(activeFilters);
+  const { projects: labelProjects } = useProjects();
   const { users } = useUsers();
   const { locations } = useLocations();
+  const { labels, refetch: refetchLabels } = useTaskLabels(labelProjectId);
   const showToast = useUiStore((state) => state.showToast);
+
+  useEffect(() => {
+    if (!labelProjects.length) {
+      if (labelProjectId) {
+        setLabelProjectId('');
+      }
+      return;
+    }
+
+    const hasSelectedProject = labelProjects.some((project) => String(project.id) === String(labelProjectId));
+
+    if (!hasSelectedProject) {
+      setLabelProjectId(String(labelProjects[0].id));
+    }
+  }, [labelProjectId, labelProjects]);
 
   // Mengubah satu filter dan langsung memicu refresh lewat useProjects.
   const updateFilter = (field, value) => {
@@ -142,6 +162,33 @@ function ProjectsPage() {
             Reset Filters
           </button>
         ) : null}
+      </div>
+
+      <div className="card p-4">
+        <div className="section-header">
+          <div>
+            <h2 className="section-title">Master Task Labels</h2>
+            <p className="section-subtitle">
+              Kelola label berdasarkan project. Label yang dibuat di sini tersedia saat membuat, mengedit, dan memfilter task.
+            </p>
+          </div>
+          <label className="grid min-w-56 gap-1">
+            <span className="label">Project</span>
+            <select
+              className="field"
+              value={labelProjectId}
+              onChange={(event) => setLabelProjectId(event.target.value)}
+            >
+              <option value="">Pilih project</option>
+              {labelProjects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <TaskLabelManager embedded hideHeader projectId={labelProjectId} labels={labelProjectId ? labels : []} onChanged={refetchLabels} />
       </div>
 
       {loading ? <div className="card p-6 text-text-muted">Loading projects...</div> : null}

@@ -1,6 +1,9 @@
 const { query } = require('../config/db');
+const { logActivity } = require('./activityService');
 const { calculateTaskDateMetrics } = require('./calendarService');
+const { createNotificationsForUsers } = require('./notificationService');
 const { updateProjectProgress, upsertProjectMember } = require('./projectService');
+const { emitToProject, emitToTask } = require('./realtimeService');
 const { formatDateKey } = require('../utils/dateUtils');
 
 const VALID_STATUSES = ['Not Started', 'In Progress', 'Waiting Review', 'Done', 'Overdue'];
@@ -81,6 +84,16 @@ const TASK_SELECT = `
     t.status AS raw_status,
     t.priority,
     t.sort_order,
+    t.creator_id,
+    t.archived_at,
+    t.archived_by,
+    t.completed_at,
+    t.approved_at,
+    t.approved_by,
+    COALESCE(label_summary.label_ids, '[]'::JSON) AS label_ids,
+    COALESCE(label_summary.labels, '[]'::JSON) AS labels,
+    COALESCE(checklist_summary.total_checklists, 0)::INTEGER AS checklist_total,
+    COALESCE(checklist_summary.completed_checklists, 0)::INTEGER AS checklist_completed,
     t.created_at,
     t.updated_at
   FROM tasks t
@@ -120,6 +133,29 @@ const TASK_SELECT = `
     LEFT JOIN locations assignee_location ON assignee_location.id = assignee_user.location_id
     WHERE ta.task_id = t.id
   ) assignee_summary ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      json_agg(tl.id ORDER BY tl.name) FILTER (WHERE tl.id IS NOT NULL) AS label_ids,
+      json_agg(
+        json_build_object(
+          'id', tl.id,
+          'project_id', tl.project_id,
+          'name', tl.name,
+          'color', tl.color
+        )
+        ORDER BY tl.name
+      ) FILTER (WHERE tl.id IS NOT NULL) AS labels
+    FROM task_label_assignments tla
+    INNER JOIN task_labels tl ON tl.id = tla.label_id
+    WHERE tla.task_id = t.id
+  ) label_summary ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      COUNT(*)::INTEGER AS total_checklists,
+      COUNT(*) FILTER (WHERE tc.is_done)::INTEGER AS completed_checklists
+    FROM task_checklists tc
+    WHERE tc.task_id = t.id
+  ) checklist_summary ON TRUE
 `;
 
 // Membatasi angka progress agar selalu berada di rentang 0 sampai 100.
@@ -265,6 +301,50 @@ const getTaskAssigneeIds = async (taskId, fallbackAssigneeId = null) => {
   }
 
   return normalizeUserIds(fallbackAssigneeId);
+};
+
+// Mengambil label id valid yang memang milik project task.
+const normalizeTaskLabelIds = async (projectId, labelIds = []) => {
+  const normalizedLabelIds = normalizeUserIds(labelIds);
+
+  if (!normalizedLabelIds.length) {
+    return [];
+  }
+
+  const result = await query(
+    `
+      SELECT id
+      FROM task_labels
+      WHERE project_id = $1
+        AND id = ANY($2::INTEGER[])
+    `,
+    [projectId, normalizedLabelIds],
+  );
+  const validLabelIds = new Set(result.rows.map((row) => Number(row.id)));
+
+  return normalizedLabelIds.filter((labelId) => validLabelIds.has(Number(labelId)));
+};
+
+// Mengganti seluruh label task agar form dan database tetap sinkron.
+const replaceTaskLabels = async (taskId, projectId, labelIds = []) => {
+  const normalizedLabelIds = await normalizeTaskLabelIds(projectId, labelIds);
+
+  await query('DELETE FROM task_label_assignments WHERE task_id = $1', [taskId]);
+
+  await Promise.all(
+    normalizedLabelIds.map((labelId) =>
+      query(
+        `
+          INSERT INTO task_label_assignments (task_id, label_id)
+          VALUES ($1, $2)
+          ON CONFLICT (task_id, label_id) DO NOTHING
+        `,
+        [taskId, labelId],
+      ),
+    ),
+  );
+
+  return normalizedLabelIds;
 };
 
 // Mengganti seluruh PIC task agar isi tabel penghubung selalu sama dengan form terbaru.
@@ -415,6 +495,10 @@ const getTasks = async (filters = {}) => {
     conditions.push(`t.project_id = $${values.length}`);
   }
 
+  if (filters.include_archived !== 'true' && filters.include_archived !== true) {
+    conditions.push('t.archived_at IS NULL');
+  }
+
   let departmentParam = '';
   let locationParam = '';
 
@@ -462,6 +546,18 @@ const getTasks = async (filters = {}) => {
     `);
   }
 
+  if (filters.label_id) {
+    values.push(filters.label_id);
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM task_label_assignments label_filter
+        WHERE label_filter.task_id = t.id
+          AND label_filter.label_id = $${values.length}
+      )
+    `);
+  }
+
   if (filters.assignee_id) {
     values.push(filters.assignee_id);
     conditions.push(`
@@ -474,6 +570,26 @@ const getTasks = async (filters = {}) => {
         OR t.assignee_id = $${values.length}
       )
     `);
+  }
+
+  if (filters.my_tasks_user_id) {
+    values.push(filters.my_tasks_user_id);
+    conditions.push(`
+      (
+        EXISTS (
+          SELECT 1
+          FROM task_assignees my_task_filter
+          WHERE my_task_filter.task_id = t.id AND my_task_filter.user_id = $${values.length}
+        )
+        OR t.assignee_id = $${values.length}
+        OR t.lead_id = $${values.length}
+      )
+    `);
+  }
+
+  if (filters.search) {
+    values.push(`%${String(filters.search).trim()}%`);
+    conditions.push(`(t.title ILIKE $${values.length} OR COALESCE(t.description, '') ILIKE $${values.length})`);
   }
 
   if (filters.priority) {
@@ -573,8 +689,114 @@ const ensureValidParent = async (taskId, parentTaskId, projectId) => {
   }
 };
 
+const buildTaskActivityPayload = (currentTask, action, description, context = {}, metadata = {}) => ({
+  actor_user_id: context.actor_user_id || context.user_id || null,
+  task_id: currentTask?.id || null,
+  project_id: currentTask?.project_id || null,
+  action,
+  object_type: 'task',
+  object_id: currentTask?.id || null,
+  description,
+  metadata,
+  ip_address: context.ip_address,
+  user_agent: context.user_agent,
+});
+
+const resolveTaskStateForFullUpdate = (currentTask, payload = {}) => {
+  const progressChanged = payload.progress !== undefined;
+  const statusChanged = payload.status !== undefined;
+  const progressValue = progressChanged ? payload.progress : currentTask.progress;
+  const requestedStatus = statusChanged
+    ? payload.status
+    : progressChanged && clampProgress(payload.progress) === APPROVED_PROGRESS
+      ? 'Done'
+      : currentTask.status;
+
+  if (currentTask.status === 'Done' && requestedStatus === 'Done' && clampProgress(progressValue) >= APPROVED_PROGRESS) {
+    return {
+      progress: APPROVED_PROGRESS,
+      status: 'Done',
+    };
+  }
+
+  return resolveManualTaskState(progressValue, requestedStatus);
+};
+
+const notifyTaskAssignees = async (task, assigneeIds = [], context = {}) => {
+  await createNotificationsForUsers(assigneeIds, {
+    actor_user_id: context.actor_user_id || context.user_id || null,
+    type: 'task.assigned',
+    resource_type: 'task',
+    resource_id: task.id,
+    task_id: task.id,
+    project_id: task.project_id,
+    title: `Anda ditugaskan ke ${task.title}`,
+    body: task.project_name ? `Project: ${task.project_name}` : null,
+    metadata: {
+      status: task.status,
+      priority: task.priority,
+    },
+  });
+};
+
+const notifyTaskWaitingReview = async (task, context = {}) => {
+  if (!task?.lead_id) {
+    return;
+  }
+
+  await createNotificationsForUsers([task.lead_id], {
+    actor_user_id: context.actor_user_id || context.user_id || null,
+    type: 'task.waiting_review',
+    resource_type: 'task',
+    resource_id: task.id,
+    task_id: task.id,
+    project_id: task.project_id,
+    title: `Task menunggu approval: ${task.title}`,
+    body: task.assignee_names ? `PIC: ${task.assignee_names}` : null,
+    metadata: {
+      progress: task.progress,
+      status: task.status,
+    },
+  });
+};
+
+const notifyTaskApproved = async (task, assigneeIds = [], context = {}) => {
+  await createNotificationsForUsers(assigneeIds, {
+    actor_user_id: context.actor_user_id || context.user_id || null,
+    type: 'task.approved',
+    resource_type: 'task',
+    resource_id: task.id,
+    task_id: task.id,
+    project_id: task.project_id,
+    title: `Task sudah diapprove: ${task.title}`,
+    body: task.project_name ? `Project: ${task.project_name}` : null,
+    metadata: {
+      approved_at: task.approved_at,
+      approved_by: task.approved_by,
+    },
+  });
+};
+
+const emitTaskRealtimeEvent = (eventName, task, context = {}, metadata = {}) => {
+  if (!task?.id) {
+    return;
+  }
+
+  const payload = {
+    actor_user_id: context.actor_user_id || context.user_id || null,
+    event: eventName,
+    metadata,
+    project_id: task.project_id ? Number(task.project_id) : null,
+    task,
+    task_id: Number(task.id),
+  };
+
+  emitToProject(task.project_id, eventName, payload);
+  emitToTask(task.id, eventName, payload);
+};
+
 // Membuat task baru, menyimpan PIC, lalu menghitung ulang progress project.
-const createTask = async (payload) => {
+const createTask = async (payload, context = {}) => {
   if (!payload.title) {
     throw new Error('Judul task wajib diisi.');
   }
@@ -616,9 +838,10 @@ const createTask = async (payload) => {
         progress,
         status,
         priority,
-        sort_order
+        sort_order,
+        creator_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING id
     `,
     [
@@ -638,18 +861,35 @@ const createTask = async (payload) => {
       taskState.status,
       payload.priority || 'Medium',
       payload.sort_order || 0,
+      context.actor_user_id || null,
     ],
   );
 
   await replaceTaskAssignees(result.rows[0].id, assigneeIds);
+  const labelIds = await replaceTaskLabels(result.rows[0].id, payload.project_id, payload.label_ids || []);
   await upsertTaskProjectMembers(payload.project_id, assigneeIds);
   await recalculateProjectTaskProgress(payload.project_id);
 
-  return getTaskById(result.rows[0].id);
+  const createdTask = await getTaskById(result.rows[0].id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      createdTask,
+      'task.create',
+      `Task "${createdTask.title}" dibuat.`,
+      context,
+      { assignee_ids: assigneeIds, label_ids: labelIds, status: createdTask.status, progress: createdTask.progress },
+    ),
+  );
+
+  await notifyTaskAssignees(createdTask, assigneeIds, context);
+  emitTaskRealtimeEvent('task.updated', createdTask, context, { action: 'task.create' });
+
+  return createdTask;
 };
 
 // Mengubah task yang sudah ada sambil menjaga validasi parent, tanggal, PIC, dan lead.
-const updateTask = async (id, payload) => {
+const updateTask = async (id, payload, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
@@ -670,9 +910,8 @@ const updateTask = async (id, payload) => {
   const startDate = payload.start_date === undefined ? currentTask.start_date : payload.start_date || null;
   const endDate = payload.end_date === undefined ? currentTask.end_date : payload.end_date || null;
   const dateMetrics = await calculateTaskDateMetrics(startDate, endDate);
-  const progressValue = payload.progress === undefined ? currentTask.progress : payload.progress;
-  const updateStatus = payload.status || (payload.progress !== undefined && clampProgress(payload.progress) === 100 ? 'Done' : currentTask.status);
-  const taskState = resolveManualTaskState(progressValue, updateStatus);
+  const taskState = resolveTaskStateForFullUpdate(currentTask, payload);
+  const previousAssigneeIds = await getTaskAssigneeIds(id, currentTask.assignee_id);
   const assigneeIds = hasAssigneePayload(payload)
     ? getPayloadAssigneeIds(payload)
     : await getTaskAssigneeIds(id, currentTask.assignee_id);
@@ -743,6 +982,12 @@ const updateTask = async (id, payload) => {
     await replaceTaskAssignees(id, assigneeIds);
   }
 
+  if (payload.label_ids !== undefined) {
+    await replaceTaskLabels(id, projectId, payload.label_ids);
+  } else if (Number(currentTask.project_id) !== Number(projectId)) {
+    await replaceTaskLabels(id, projectId, []);
+  }
+
   await upsertTaskProjectMembers(projectId, assigneeIds);
   await recalculateProjectTaskProgress(currentTask.project_id);
 
@@ -750,16 +995,54 @@ const updateTask = async (id, payload) => {
     await recalculateProjectTaskProgress(projectId);
   }
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      updatedTask,
+      'task.update',
+      `Task "${updatedTask.title}" diperbarui.`,
+      context,
+      {
+        previous_project_id: currentTask.project_id,
+        project_id: updatedTask.project_id,
+        changed_fields: Object.keys(payload || {}),
+      },
+    ),
+  );
+
+  if (hasAssigneePayload(payload)) {
+    const previousAssigneeIdSet = new Set(previousAssigneeIds.map(Number));
+    const newAssigneeIds = assigneeIds.filter((assigneeId) => !previousAssigneeIdSet.has(Number(assigneeId)));
+    await notifyTaskAssignees(updatedTask, newAssigneeIds, context);
+  }
+
+  if (currentTask.status !== 'Waiting Review' && (updatedTask.raw_status === 'Waiting Review' || updatedTask.status === 'Waiting Review')) {
+    await notifyTaskWaitingReview(updatedTask, context);
+  }
+
+  emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.update' });
+
+  return updatedTask;
 };
 
 // Menghapus task lalu menghitung ulang progress project terkait.
-const deleteTask = async (id) => {
+const deleteTask = async (id, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
     throw new Error('Task tidak ditemukan.');
   }
+
+  await logActivity(
+    buildTaskActivityPayload(
+      currentTask,
+      'task.delete',
+      `Task "${currentTask.title}" dihapus.`,
+      context,
+      { deleted_task_id: Number(id) },
+    ),
+  );
 
   await query('DELETE FROM tasks WHERE id = $1', [id]);
   await recalculateProjectTaskProgress(currentTask.project_id);
@@ -768,7 +1051,7 @@ const deleteTask = async (id) => {
 };
 
 // Mengubah status task dan menyesuaikan progress jika status menuntut perubahan.
-const updateTaskStatus = async (id, status) => {
+const updateTaskStatus = async (id, status, context = {}) => {
   if (!VALID_STATUSES.includes(status)) {
     throw new Error('Status task tidak valid.');
   }
@@ -784,11 +1067,29 @@ const updateTaskStatus = async (id, status) => {
   await query('UPDATE tasks SET status = $1, progress = $2 WHERE id = $3', [taskState.status, taskState.progress, id]);
   await recalculateProjectTaskProgress(currentTask.project_id);
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      updatedTask,
+      'task.status.update',
+      `Status task "${updatedTask.title}" diubah menjadi ${updatedTask.status}.`,
+      context,
+      { previous_status: currentTask.status, status: updatedTask.status },
+    ),
+  );
+
+  if (currentTask.status !== 'Waiting Review' && (updatedTask.raw_status === 'Waiting Review' || updatedTask.status === 'Waiting Review')) {
+    await notifyTaskWaitingReview(updatedTask, context);
+  }
+
+  emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.status.update' });
+
+  return updatedTask;
 };
 
 // Mengubah progress task dan otomatis menyesuaikan status task.
-const updateTaskProgress = async (id, progressValue) => {
+const updateTaskProgress = async (id, progressValue, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
@@ -809,11 +1110,29 @@ const updateTaskProgress = async (id, progressValue) => {
   await query('UPDATE tasks SET progress = $1, status = $2 WHERE id = $3', [progress, status, id]);
   await recalculateProjectTaskProgress(currentTask.project_id);
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      updatedTask,
+      'task.progress.update',
+      `Progress task "${updatedTask.title}" diubah menjadi ${updatedTask.progress}%.`,
+      context,
+      { previous_progress: currentTask.progress, progress: updatedTask.progress },
+    ),
+  );
+
+  if (currentTask.status !== 'Waiting Review' && (updatedTask.raw_status === 'Waiting Review' || updatedTask.status === 'Waiting Review')) {
+    await notifyTaskWaitingReview(updatedTask, context);
+  }
+
+  emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.progress.update' });
+
+  return updatedTask;
 };
 
 // Mengapprove task yang sudah selesai secara pekerjaan, hanya oleh lead task.
-const approveTask = async (id, approverUserId) => {
+const approveTask = async (id, approverUserId, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
@@ -840,24 +1159,38 @@ const approveTask = async (id, approverUserId) => {
     throw new Error('Semua subtask harus diapprove sebelum parent task bisa diapprove.');
   }
 
-  await query('UPDATE tasks SET progress = $1, status = $2 WHERE id = $3', [APPROVED_PROGRESS, 'Done', id]);
-
   await query(
     `
-      INSERT INTO activity_logs (task_id, project_id, user_id, action, description)
-      VALUES ($1, $2, $3, 'task_approved', $4)
+      UPDATE tasks
+      SET
+        progress = $1,
+        status = $2,
+        completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+        approved_at = CURRENT_TIMESTAMP,
+        approved_by = $3
+      WHERE id = $4
     `,
-    [
-      id,
-      currentTask.project_id,
-      approver.id,
+    [APPROVED_PROGRESS, 'Done', approver.id, id],
+  );
+
+  await logActivity(
+    buildTaskActivityPayload(
+      currentTask,
+      'task.approve',
       `Task "${currentTask.title}" diapprove oleh ${approver.role === 'super_admin' ? 'super admin' : 'lead'}.`,
-    ],
+      { ...context, actor_user_id: approver.id },
+      { approver_role: approver.role, previous_status: currentTask.status },
+    ),
   );
 
   await recalculateProjectTaskProgress(currentTask.project_id);
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+  const assigneeIds = await getTaskAssigneeIds(id, currentTask.assignee_id);
+  await notifyTaskApproved(updatedTask, assigneeIds, { ...context, actor_user_id: approver.id });
+  emitTaskRealtimeEvent('task.updated', updatedTask, { ...context, actor_user_id: approver.id }, { action: 'task.approve' });
+
+  return updatedTask;
 };
 
 // Mencatat realisasi mulai, selesai, atau realisasi manual untuk task.
@@ -928,22 +1261,40 @@ const updateTaskRealization = async (id, payload = {}) => {
       [actualStartDate, actualEndDate, actualMetrics.duration_days, actualMetrics.work_days, REVIEW_PROGRESS, id],
     );
 
-    await query(
-      `
-        INSERT INTO activity_logs (task_id, project_id, user_id, action, description)
-        VALUES ($1, $2, $3, 'task_realization_manual', $4)
-      `,
-      [
-        id,
-        currentTask.project_id,
-        actionUser.id,
+    await logActivity(
+      buildTaskActivityPayload(
+        currentTask,
+        'task.realization.manual',
         `Realisasi manual task "${currentTask.title}" diisi oleh ${actionUser.name} untuk ${actualStartDate} sampai ${actualEndDate}. Alasan: ${manualReason}. Task menunggu approval lead.`,
-      ],
+        {
+          actor_user_id: actionUser.id,
+          ip_address: payload.ip_address,
+          user_agent: payload.user_agent,
+        },
+        {
+          actual_start_date: actualStartDate,
+          actual_end_date: actualEndDate,
+          reason: manualReason,
+        },
+      ),
     );
 
     await recalculateProjectTaskProgress(currentTask.project_id);
 
-    return getTaskById(id);
+    const updatedTask = await getTaskById(id);
+    await notifyTaskWaitingReview(updatedTask, {
+      actor_user_id: actionUser.id,
+      ip_address: payload.ip_address,
+      user_agent: payload.user_agent,
+    });
+    emitTaskRealtimeEvent(
+      'task.updated',
+      updatedTask,
+      { actor_user_id: actionUser.id },
+      { action: 'task.realization.manual' },
+    );
+
+    return updatedTask;
   }
 
   if (action === 'start') {
@@ -962,20 +1313,29 @@ const updateTaskRealization = async (id, payload = {}) => {
       [realizationDate, nextStatus, id],
     );
 
-    await query(
-      `
-        INSERT INTO activity_logs (task_id, project_id, user_id, action, description)
-        VALUES ($1, $2, $3, 'task_realization_started', $4)
-      `,
-      [
-        id,
-        currentTask.project_id,
-        actionUser?.id || null,
+    await logActivity(
+      buildTaskActivityPayload(
+        currentTask,
+        'task.realization.start',
         `Realisasi task "${currentTask.title}" dimulai pada ${realizationDate}${actionUser ? ` oleh ${actionUser.name}` : ''}.`,
-      ],
+        {
+          actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null,
+          ip_address: payload.ip_address,
+          user_agent: payload.user_agent,
+        },
+        { actual_start_date: realizationDate },
+      ),
     );
 
-    return getTaskById(id);
+    const updatedTask = await getTaskById(id);
+    emitTaskRealtimeEvent(
+      'task.updated',
+      updatedTask,
+      { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null },
+      { action: 'task.realization.start' },
+    );
+
+    return updatedTask;
   }
 
   if (action === 'finish') {
@@ -1003,29 +1363,46 @@ const updateTaskRealization = async (id, payload = {}) => {
       [actualStartDate, realizationDate, actualMetrics.duration_days, actualMetrics.work_days, REVIEW_PROGRESS, id],
     );
 
-    await query(
-      `
-        INSERT INTO activity_logs (task_id, project_id, user_id, action, description)
-        VALUES ($1, $2, $3, 'task_realization_finished', $4)
-      `,
-      [
-        id,
-        currentTask.project_id,
-        actionUser?.id || null,
+    await logActivity(
+      buildTaskActivityPayload(
+        currentTask,
+        'task.realization.finish',
         `Realisasi task "${currentTask.title}" selesai pada ${realizationDate}${actionUser ? ` oleh ${actionUser.name}` : ''} dan menunggu approval lead.`,
-      ],
+        {
+          actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null,
+          ip_address: payload.ip_address,
+          user_agent: payload.user_agent,
+        },
+        {
+          actual_start_date: actualStartDate,
+          actual_end_date: realizationDate,
+        },
+      ),
     );
 
     await recalculateProjectTaskProgress(currentTask.project_id);
 
-    return getTaskById(id);
+    const updatedTask = await getTaskById(id);
+    await notifyTaskWaitingReview(updatedTask, {
+      actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null,
+      ip_address: payload.ip_address,
+      user_agent: payload.user_agent,
+    });
+    emitTaskRealtimeEvent(
+      'task.updated',
+      updatedTask,
+      { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null },
+      { action: 'task.realization.finish' },
+    );
+
+    return updatedTask;
   }
 
   throw new Error('Aksi realisasi tidak valid.');
 };
 
 // Memindahkan task antar bucket/status/urutan seperti saat drag and drop di board.
-const moveTask = async (id, payload) => {
+const moveTask = async (id, payload, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
@@ -1056,11 +1433,34 @@ const moveTask = async (id, payload) => {
 
   await recalculateProjectTaskProgress(currentTask.project_id);
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      updatedTask,
+      'task.move',
+      `Task "${updatedTask.title}" dipindahkan di board/list.`,
+      context,
+      {
+        previous_bucket_id: currentTask.bucket_id,
+        bucket_id: updatedTask.bucket_id,
+        previous_status: currentTask.status,
+        status: updatedTask.status,
+        sort_order: updatedTask.sort_order,
+      },
+    ),
+  );
+
+  emitTaskRealtimeEvent('task.moved', updatedTask, context, {
+    previous_bucket_id: currentTask.bucket_id,
+    previous_status: currentTask.status,
+  });
+
+  return updatedTask;
 };
 
 // Mengubah parent task lalu menghitung ulang rollup progress dan tanggal.
-const updateTaskParent = async (id, parentTaskId) => {
+const updateTaskParent = async (id, parentTaskId, context = {}) => {
   const currentTask = await getTaskRawById(id);
 
   if (!currentTask) {
@@ -1071,7 +1471,106 @@ const updateTaskParent = async (id, parentTaskId) => {
   await query('UPDATE tasks SET parent_task_id = $1 WHERE id = $2', [parentTaskId || null, id]);
   await recalculateProjectTaskProgress(currentTask.project_id);
 
-  return getTaskById(id);
+  const updatedTask = await getTaskById(id);
+
+  await logActivity(
+    buildTaskActivityPayload(
+      updatedTask,
+      'task.parent.update',
+      `Parent task "${updatedTask.title}" diperbarui.`,
+      context,
+      { previous_parent_task_id: currentTask.parent_task_id, parent_task_id: updatedTask.parent_task_id },
+    ),
+  );
+
+  emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.parent.update' });
+
+  return updatedTask;
+};
+
+// Melakukan update massal sederhana tanpa mengubah kontrak create/update task individual.
+const bulkUpdateTasks = async (payload = {}, context = {}) => {
+  const taskIds = normalizeUserIds(payload.task_ids);
+
+  if (!taskIds.length) {
+    throw new Error('Pilih minimal satu task untuk bulk update.');
+  }
+
+  const allowedActions = ['status', 'priority', 'bucket', 'archive', 'unarchive'];
+  const action = payload.action;
+
+  if (!allowedActions.includes(action)) {
+    throw new Error('Aksi bulk update tidak valid.');
+  }
+
+  if (action === 'priority') {
+    validatePriority(payload.priority);
+  }
+
+  if (action === 'status' && !VALID_STATUSES.includes(payload.status)) {
+    throw new Error('Status task tidak valid.');
+  }
+
+  const currentTasksResult = await query('SELECT * FROM tasks WHERE id = ANY($1::INTEGER[])', [taskIds]);
+  const currentTasks = currentTasksResult.rows;
+
+  if (!currentTasks.length) {
+    throw new Error('Task tidak ditemukan.');
+  }
+
+  const updatedTaskIds = [];
+  const affectedProjectIds = new Set();
+
+  for (const currentTask of currentTasks) {
+    if (action === 'status') {
+      const taskState = resolveManualTaskState(currentTask.progress, payload.status);
+      await query('UPDATE tasks SET status = $1, progress = $2 WHERE id = $3', [taskState.status, taskState.progress, currentTask.id]);
+    }
+
+    if (action === 'priority') {
+      await query('UPDATE tasks SET priority = $1 WHERE id = $2', [payload.priority, currentTask.id]);
+    }
+
+    if (action === 'bucket') {
+      await query('UPDATE tasks SET bucket_id = $1 WHERE id = $2', [payload.bucket_id || null, currentTask.id]);
+    }
+
+    if (action === 'archive') {
+      await query('UPDATE tasks SET archived_at = CURRENT_TIMESTAMP, archived_by = $1 WHERE id = $2', [
+        context.actor_user_id || null,
+        currentTask.id,
+      ]);
+    }
+
+    if (action === 'unarchive') {
+      await query('UPDATE tasks SET archived_at = NULL, archived_by = NULL WHERE id = $1', [currentTask.id]);
+    }
+
+    updatedTaskIds.push(currentTask.id);
+    affectedProjectIds.add(Number(currentTask.project_id));
+
+    await logActivity(
+      buildTaskActivityPayload(
+        currentTask,
+        `task.bulk.${action}`,
+        `Task "${currentTask.title}" diperbarui melalui bulk action ${action}.`,
+        context,
+        { action, payload },
+      ),
+    );
+  }
+
+  await Promise.all(Array.from(affectedProjectIds).map((projectId) => recalculateProjectTaskProgress(projectId)));
+  const updatedTasks = await Promise.all(updatedTaskIds.map((taskId) => getTaskById(taskId)));
+  updatedTasks.filter(Boolean).forEach((updatedTask) => {
+    emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: `task.bulk.${action}` });
+  });
+
+  return {
+    action,
+    updated_count: updatedTaskIds.length,
+    task_ids: updatedTaskIds,
+  };
 };
 
 // Mengambil task untuk satu project saja.
@@ -1262,6 +1761,7 @@ module.exports = {
   VALID_STATUSES,
   approveTask,
   buildTaskTree,
+  bulkUpdateTasks,
   createTask,
   deleteTask,
   flattenTaskTree,

@@ -1,0 +1,3020 @@
+RENCANA PENGEMBANGAN APLIKASI PROJECT MANAGEMENT MENJADI PLATFORM KOLABORASI PROFESIONAL
+Tanggal dokumen: 2026-05-21
+Lokasi project: c:\laragon\www\Project Management\project-management-app
+
+======================================================================
+1. RINGKASAN EKSEKUTIF
+======================================================================
+
+Dokumen ini menjelaskan rencana pengembangan aplikasi Project Management Planner Gantt agar naik kelas menjadi aplikasi kolaborasi kerja yang lebih profesional, dengan referensi fitur publik dari Cicle Project Management.
+
+Targetnya bukan menyalin Cicle secara mentah, tetapi membangun aplikasi yang memiliki kemampuan sekelas Cicle pada area:
+
+1. Manajemen tugas harian.
+2. Monitoring pekerjaan lintas proyek dan departemen.
+3. Komunikasi kerja terpusat.
+4. Dokumen dan file terstruktur.
+5. Aktivitas dan audit trail.
+6. Laporan kinerja karyawan.
+7. Reminder, notifikasi, dan kalender agenda.
+8. Kontrol akses yang aman.
+9. Search lintas data.
+10. Pengalaman kerja yang sederhana, rapi, dan mudah diadopsi oleh tim Indonesia.
+
+Aplikasi saat ini sudah memiliki kekuatan yang tidak terlalu ditonjolkan oleh Cicle dalam materi publiknya, yaitu:
+
+1. Gantt Chart per project.
+2. Department Gantt.
+3. Nested subtask.
+4. Rollup progress parent task.
+5. Working calendar untuk menghitung work days.
+6. Actual realization.
+7. Lead approval.
+8. Multi PIC.
+9. Cross-department project involvement.
+
+Strategi pengembangan terbaik adalah mempertahankan kekuatan Planner + Gantt, lalu menambahkan lapisan collaboration operating system seperti Cicle.
+
+Produk akhir yang dituju:
+
+Project Management Planner Gantt menjadi "Department Work Hub", yaitu platform internal perusahaan untuk:
+
+1. Membuat project dan ruang kerja tim.
+2. Mengatur pekerjaan dalam board, list, calendar, dan Gantt.
+3. Mengelola komunikasi pekerjaan tanpa bergantung pada WhatsApp.
+4. Menyimpan dokumen dan link penting.
+5. Memantau kinerja individu, departemen, dan proyek.
+6. Mengurangi meeting reporting melalui check-in async.
+7. Menjamin semua instruksi, komentar, perubahan data, dan persetujuan tercatat.
+
+======================================================================
+2. SUMBER RISET FITUR CICLE
+======================================================================
+
+Riset dilakukan dari sumber publik resmi dan marketplace aplikasi pada 2026-05-21.
+
+Sumber utama:
+
+1. https://cicle.app/
+2. https://cicle.app/cara-kerja/
+3. https://cicle.app/tutorial/
+4. https://cicle.app/harga/
+5. https://blog.cicle.app/cicle-fitur-kontrol-akses-rbac/
+6. https://blog.cicle.app/laporan-kinerja-karyawan-cicle/
+7. https://blog.cicle.app/fitur-read-by-di-cicle/
+8. https://blog.cicle.app/rilis-fitur-search-all-unarchived-team-document-di-cicle/
+9. https://blog.cicle.app/ini-7-fitur-unggulan-cicle-yang-bantu-kamu-manage-kerjaan-tim/
+10. https://play.google.com/store/apps/details?id=app.cicle
+11. https://apps.apple.com/id/app/cicle/id1555660107
+
+Catatan batasan:
+
+1. Riset ini hanya menggunakan informasi publik.
+2. Detail internal Cicle yang tidak dipublikasikan harus divalidasi melalui trial/demo langsung.
+3. Nama fitur publik dapat berubah sewaktu-waktu.
+4. Implementasi aplikasi ini harus disesuaikan dengan kebutuhan bisnis sendiri, bukan bergantung pada cara teknis Cicle.
+
+======================================================================
+3. KONDISI APLIKASI SAAT INI
+======================================================================
+
+3.1 Stack saat ini
+
+Frontend:
+
+1. React.
+2. Vite.
+3. React Router.
+4. Tailwind CSS.
+5. Axios.
+6. dnd-kit.
+7. date-fns.
+8. Zustand.
+
+Backend:
+
+1. Node.js.
+2. Express.
+3. PostgreSQL.
+4. pg.
+5. CORS.
+6. dotenv.
+
+Database:
+
+1. PostgreSQL.
+2. Schema utama berada di backend/src/database/schema.sql.
+3. Migration tambahan berada di backend/src/database/migrations.
+
+3.2 Modul frontend yang sudah ada
+
+Halaman:
+
+1. DashboardPage.
+2. ProjectsPage.
+3. ProjectDetailPage.
+4. BoardPage.
+5. TaskListPage.
+6. GanttPage.
+7. DepartmentGanttPage.
+8. TeamPage.
+9. LocationsPage.
+10. CalendarSettingsPage.
+11. SettingsPage.
+12. LoginPage.
+
+Komponen utama:
+
+1. BoardView.
+2. BoardColumn.
+3. TaskCard.
+4. TaskTree.
+5. TaskDetailModal.
+6. TaskFormModal.
+7. TaskRealizationManualModal.
+8. GanttChart.
+9. GanttRow.
+10. ProjectHeader.
+11. BucketManager.
+12. SummaryCard.
+13. TaskStatusChart.
+
+State dan service:
+
+1. uiStore.
+2. taskStore.
+3. projectStore.
+4. taskApi.
+5. projectApi.
+6. ganttApi.
+7. dashboardApi.
+8. calendarApi.
+9. authApi.
+10. userApi.
+
+3.3 Modul backend yang sudah ada
+
+Routes:
+
+1. /api/auth
+2. /api/departments
+3. /api/locations
+4. /api/users
+5. /api/projects
+6. /api/buckets
+7. /api/tasks
+8. /api/calendar
+9. /api/gantt
+10. /api/dashboard
+
+Services:
+
+1. authService.
+2. calendarService.
+3. dashboardService.
+4. ganttService.
+5. projectService.
+6. taskService.
+
+3.4 Tabel database yang sudah ada
+
+1. departments.
+2. locations.
+3. users.
+4. projects.
+5. project_members.
+6. buckets.
+7. tasks.
+8. task_assignees.
+9. task_comments.
+10. task_attachments.
+11. activity_logs.
+12. calendar_exceptions.
+
+3.5 Kekuatan aplikasi saat ini
+
+1. Struktur project, bucket, task, dan subtask sudah berjalan.
+2. Nested subtask sudah didukung secara konseptual.
+3. Parent task menghitung progress dari child secara rekursif.
+4. Project progress dihitung dari task utama.
+5. Board bisa drag and drop dan tersimpan ke database.
+6. List view sudah mendukung tree.
+7. Gantt project dan Gantt lintas task sudah tersedia.
+8. Department Gantt sudah menjadi pembeda penting.
+9. Working calendar dan exception holiday/working day sudah ada.
+10. Actual realization dan lead approval sudah mulai dibangun.
+11. Multi PIC sudah didukung melalui task_assignees.
+12. Auth dasar sudah tersedia.
+
+3.6 Kelemahan utama aplikasi saat ini
+
+1. Auth belum production grade.
+2. Role dan permission masih terlalu sederhana.
+3. Activity log belum menjadi fitur UI yang utuh.
+4. Task comments belum berkembang menjadi diskusi kerja.
+5. Belum ada mention, read-by, dan notification center.
+6. Belum ada realtime collaboration.
+7. File attachment masih minimal.
+8. Belum ada folder, document, link repository, archive/unarchive file.
+9. Belum ada global search.
+10. Belum ada check-in harian/mingguan.
+11. Belum ada announcement/blast.
+12. Belum ada schedule/event calendar untuk agenda kerja.
+13. Belum ada performance report per karyawan.
+14. Belum ada My Tasks yang kuat.
+15. Belum ada All Tasks dengan UX sekelas command center.
+16. Belum ada hardening production seperti rate limit, audit security, backup strategy, dan structured logging.
+
+======================================================================
+4. FITUR CICLE DAN PEMETAANNYA KE APLIKASI
+======================================================================
+
+4.1 Workspace, company, team, dan project room
+
+Fitur Cicle:
+
+1. User membuat company/workspace.
+2. User mengundang karyawan melalui email.
+3. Company memiliki tim dan proyek.
+4. Tim/proyek menjadi ruang kerja yang berisi modul seperti tugas, chat, file, jadwal, announcement, dan check-in.
+5. Bisa membuat HQ sebagai ruang umum perusahaan.
+
+Status aplikasi saat ini:
+
+1. Belum ada tabel workspace/company.
+2. Ada departments, locations, users, projects, project_members.
+3. Project sudah bisa menjadi ruang kerja proyek.
+4. Department masih lebih sebagai master data, belum menjadi ruang kerja tim.
+
+Pengembangan:
+
+1. Tambah konsep workspace/company jika aplikasi akan dipakai multi perusahaan.
+2. Jika hanya untuk internal satu perusahaan, workspace bisa dibuat sebagai single tenant setting.
+3. Buat konsep "workspaces" atau "organizations" untuk future proof.
+4. Buat "rooms" sebagai abstraksi untuk department room, project room, dan company HQ.
+5. Modul task, chat, documents, schedule, announcement, dan check-in bisa ditautkan ke room.
+
+Rekomendasi awal:
+
+1. Jangan langsung melakukan refactor besar ke room abstraction pada fase pertama.
+2. Mulai dengan project sebagai room utama.
+3. Tambah department workspace setelah project collaboration stabil.
+
+4.2 Task management multi-view
+
+Fitur Cicle:
+
+1. Kanban Board.
+2. List view.
+3. Calendar view.
+4. Semua Tugas lintas tim/proyek.
+5. My Tasks.
+6. Due date.
+7. Label/kategori.
+8. Attachment.
+9. Checklist/sub-checklist.
+10. Bulk actions.
+11. Total card count per list.
+12. Permission siapa yang boleh move card dalam list.
+
+Status aplikasi saat ini:
+
+1. Board View sudah ada.
+2. List View tree sudah ada.
+3. Gantt View sudah ada.
+4. All Tasks ada dalam /tasks, tetapi UX masih bisa diperkuat.
+5. Belum ada Calendar View.
+6. Belum ada label.
+7. Belum ada checklist terpisah.
+8. Belum ada bulk actions.
+9. Belum ada permission per list/bucket.
+
+Pengembangan:
+
+1. Tambahkan My Tasks untuk current user.
+2. Perkuat All Tasks sebagai command center.
+3. Tambah Calendar View untuk task due date.
+4. Tambah labels/tags.
+5. Tambah checklist items dan nested checklist.
+6. Tambah bulk select dan bulk update.
+7. Tambah bucket/list metadata: type, permissions, color, done flag.
+
+4.3 Realtime chat dan task discussion
+
+Fitur Cicle:
+
+1. Group chat.
+2. Private chat.
+3. Realtime notification.
+4. Read-by.
+5. Media gallery.
+6. Komentar pada task juga memiliki read-by.
+
+Status aplikasi saat ini:
+
+1. Tabel task_comments sudah ada.
+2. Belum ada UI komentar matang.
+3. Belum ada read receipts.
+4. Belum ada chat project/group/private.
+5. Belum ada realtime socket.
+
+Pengembangan:
+
+1. Bangun task discussion terlebih dahulu.
+2. Tambah mention.
+3. Tambah read receipts pada komentar.
+4. Tambah notification center.
+5. Tambah project chat.
+6. Tambah private chat setelah project chat stabil.
+7. Tambah Socket.IO/SSE untuk realtime.
+
+4.4 Blast atau announcement
+
+Fitur Cicle:
+
+1. Pengumuman penting.
+2. Tidak tenggelam oleh chat.
+3. Bisa ada diskusi di dalam announcement.
+
+Status aplikasi saat ini:
+
+1. Belum ada modul announcement.
+
+Pengembangan:
+
+1. Tambah announcements.
+2. Announcement scoped ke company, department, project.
+3. Support pinned announcement.
+4. Support comments.
+5. Support read receipts.
+6. Support attachment.
+
+4.5 Check-in
+
+Fitur Cicle:
+
+1. Daily reporting async.
+2. Weekly reporting async.
+3. Leader membuat pertanyaan rutin.
+4. Karyawan menjawab tanpa meeting.
+5. Leader memantau aktivitas dan mood/progress.
+
+Status aplikasi saat ini:
+
+1. Belum ada modul check-in.
+
+Pengembangan:
+
+1. Tambah check-in template.
+2. Tambah schedule pengiriman check-in.
+3. Tambah response per user per periode.
+4. Tambah dashboard check-in.
+5. Hubungkan check-in dengan performance report.
+
+4.6 Schedule dan calendar agenda
+
+Fitur Cicle:
+
+1. Agenda/event penting.
+2. Reminder jadwal.
+3. Integrasi Google Calendar.
+4. Integrasi Apple Calendar.
+
+Status aplikasi saat ini:
+
+1. Ada calendar_exceptions untuk working calendar.
+2. Belum ada event calendar.
+3. Belum ada agenda/meeting.
+4. Belum ada iCal/Google integration.
+
+Pengembangan:
+
+1. Pisahkan konsep working calendar dari schedule calendar.
+2. Tambah schedule_events.
+3. Tambah participants.
+4. Tambah reminders.
+5. Tambah export iCal feed.
+6. Google Calendar integration dapat masuk fase lanjutan.
+
+4.7 Docs and Files
+
+Fitur Cicle:
+
+1. Folder.
+2. File.
+3. Link penting.
+4. Document/note.
+5. Archive/unarchive.
+6. Thumbnail preview.
+7. Resumable upload.
+8. Large file upload.
+9. Media gallery di chat.
+
+Status aplikasi saat ini:
+
+1. task_attachments hanya menyimpan file_name dan file_url.
+2. Belum ada file upload service.
+3. Belum ada folder manager.
+4. Belum ada document editor.
+5. Belum ada archive/unarchive file.
+
+Pengembangan:
+
+1. Tambah documents module per project/department.
+2. Tambah file storage strategy.
+3. Tahap awal: local disk storage dengan metadata DB.
+4. Tahap produksi: S3-compatible storage.
+5. Tambah folder hierarchy.
+6. Tambah archive/unarchive.
+7. Tambah attachment relation ke task, comment, announcement, chat.
+
+4.8 Activity log
+
+Fitur Cicle:
+
+1. Melihat aktivitas semua orang.
+2. Siapa melakukan apa.
+3. Siapa sedang sibuk di mana.
+4. Siapa menghapus file.
+5. Transparansi dan audit.
+
+Status aplikasi saat ini:
+
+1. Tabel activity_logs sudah ada.
+2. Sebagian workflow sudah mencatat approval dan realization.
+3. Belum semua mutation dicatat.
+4. Belum ada Activity page utuh.
+
+Pengembangan:
+
+1. Buat activityService.
+2. Semua create/update/delete/move/archive/approve/comment/file action lewat helper audit.
+3. Tambah activity feed UI.
+4. Tambah filter by project, user, action, date.
+5. Tambah activity detail payload JSON.
+
+4.9 Performance report
+
+Fitur Cicle:
+
+1. Laporan kinerja per karyawan.
+2. Menghitung tugas selesai, sedang dikerjakan, belum, dan terlambat.
+3. Rating Bagus, Cukup, Kurang.
+4. Saran perbaikan.
+5. Kemungkinan penghambat.
+6. Web dashboard.
+
+Status aplikasi saat ini:
+
+1. Dashboard global sudah ada.
+2. Overdue by department sudah ada.
+3. Belum ada report per user.
+4. Belum ada rating.
+5. Belum ada saran otomatis.
+
+Pengembangan:
+
+1. Tambah endpoint performance report.
+2. Hitung per user dan periode.
+3. Buat formula rating transparan.
+4. Tampilkan list task per kategori.
+5. Tambah bottleneck detection.
+6. Tambah export Excel/PDF.
+
+4.10 Search All
+
+Fitur Cicle:
+
+1. Search card.
+2. Search comment.
+3. Search private chat.
+4. Search group chat.
+5. Search event.
+6. Search document/folder.
+7. Search archived item.
+8. Filter hasil.
+9. Shortcut Ctrl + /.
+10. Recently Viewed.
+
+Status aplikasi saat ini:
+
+1. Belum ada global search.
+
+Pengembangan:
+
+1. Tambah search endpoint.
+2. Gunakan PostgreSQL full-text search untuk tahap awal.
+3. Tambah indexed materialized view jika data membesar.
+4. Tambah frontend command palette.
+5. Tambah recently viewed.
+
+4.11 RBAC dan kontrol akses
+
+Fitur Cicle:
+
+1. Role hierarkis.
+2. Company default access.
+3. Team/project access override.
+4. Module-level access.
+5. Creator privilege.
+6. Member bisa membuat modul sendiri tetapi tidak bisa edit milik orang lain.
+7. Kontributor bisa edit ketika diundang.
+8. Manager bisa mengelola modul, anggota, dan akses.
+9. Admin dan Super User memiliki akses luas.
+
+Status aplikasi saat ini:
+
+1. Ada users.role.
+2. Ada project_members.role.
+3. Role belum dipakai konsisten di semua endpoint.
+4. Middleware authorization belum matang.
+
+Pengembangan:
+
+1. Definisikan permission matrix.
+2. Tambah access policy helper di backend.
+3. Tambah role assignment per project.
+4. Tambah module permissions untuk task/document/announcement/check-in.
+5. Tambah object-level permissions untuk task/document tertentu bila dibutuhkan.
+6. UI menyembunyikan action jika user tidak punya izin.
+7. Backend tetap menjadi sumber kebenaran final.
+
+======================================================================
+5. PRINSIP PRODUK DAN ARSITEKTUR
+======================================================================
+
+5.1 Prinsip produk
+
+1. Sederhana dipakai oleh karyawan non-teknis.
+2. Tetap kuat untuk monitoring manajemen.
+3. Semua data penting harus tercatat dan bisa diaudit.
+4. Komunikasi kerja harus terhubung dengan objek kerja.
+5. Jangan membuat fitur chat menjadi pengganti task; chat hanya mendukung koordinasi.
+6. Gantt tetap menjadi pembeda utama.
+7. Permission dan audit harus dibangun sebelum fitur kolaborasi terlalu luas.
+8. Fitur baru harus incremental dan tidak merusak workflow MVP.
+
+5.2 Prinsip teknis
+
+1. Pertahankan stack React + Vite + Express + PostgreSQL untuk fase awal.
+2. Jangan migrasi ke Next.js sebelum kebutuhan SSR, server component, atau fullstack routing benar-benar jelas.
+3. Tambah TypeScript secara bertahap, dimulai dari shared type dan service boundary.
+4. Gunakan migration SQL eksplisit untuk setiap perubahan schema.
+5. Backend harus menjadi pemilik business rule.
+6. Frontend hanya mengatur UX dan validasi ringan.
+7. Semua input eksternal divalidasi.
+8. Semua endpoint mutation dilindungi auth dan permission.
+9. Semua perubahan data penting masuk audit log.
+10. Hindari dependency baru kecuali jelas meningkatkan kualitas.
+
+5.3 Target arsitektur logical
+
+Layer frontend:
+
+1. pages: route-level screens.
+2. components: UI reusable dan feature components.
+3. logic/services: API clients.
+4. logic/hooks: data fetching hooks.
+5. logic/helpers: pure UI/domain helpers.
+6. store: UI/session state.
+
+Layer backend:
+
+1. routes: mapping HTTP route.
+2. controllers: parsing request dan response.
+3. services: business logic.
+4. repositories atau query modules: query kompleks yang mulai besar.
+5. middlewares: auth, permission, validation, error handling.
+6. utils: shared pure helpers.
+7. database/migrations: perubahan schema.
+
+Layer database:
+
+1. master data.
+2. operational data.
+3. collaboration data.
+4. audit data.
+5. search data.
+6. reporting views.
+
+======================================================================
+6. RANCANGAN DATABASE TARGET
+======================================================================
+
+6.1 Perubahan auth dan session
+
+Tambahan kolom users:
+
+1. password_hash tetap ada, tetapi hashing diganti ke bcrypt.
+2. is_active BOOLEAN DEFAULT TRUE.
+3. last_login_at TIMESTAMP NULL.
+4. invited_at TIMESTAMP NULL.
+5. invitation_accepted_at TIMESTAMP NULL.
+6. deleted_at TIMESTAMP NULL untuk soft delete jika dibutuhkan.
+
+Tabel auth_sessions:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER REFERENCES users(id) ON DELETE CASCADE.
+3. token_hash VARCHAR(255) NOT NULL.
+4. user_agent TEXT.
+5. ip_address VARCHAR(80).
+6. expires_at TIMESTAMP NOT NULL.
+7. revoked_at TIMESTAMP NULL.
+8. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+Tabel password_reset_tokens:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER REFERENCES users(id) ON DELETE CASCADE.
+3. token_hash VARCHAR(255) NOT NULL.
+4. expires_at TIMESTAMP NOT NULL.
+5. used_at TIMESTAMP NULL.
+6. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+6.2 Workspace atau company
+
+Jika aplikasi single company, tabel ini tetap berguna untuk future proof.
+
+Tabel organizations:
+
+1. id SERIAL PRIMARY KEY.
+2. name VARCHAR(150) NOT NULL.
+3. slug VARCHAR(120) UNIQUE.
+4. default_role VARCHAR(40) DEFAULT 'member'.
+5. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+6. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+Tambahan kolom users:
+
+1. organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL.
+
+Tambahan kolom projects:
+
+1. organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE.
+
+Tambahan kolom departments:
+
+1. organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE.
+
+6.3 Role dan permission
+
+Role awal yang disarankan:
+
+1. super_admin.
+2. admin.
+3. manager.
+4. contributor.
+5. member.
+6. guest.
+
+Tabel role_permissions:
+
+1. id SERIAL PRIMARY KEY.
+2. role VARCHAR(40) NOT NULL.
+3. resource VARCHAR(80) NOT NULL.
+4. action VARCHAR(80) NOT NULL.
+5. allowed BOOLEAN DEFAULT TRUE.
+6. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. UNIQUE(role, resource, action).
+
+Tabel project_access:
+
+1. id SERIAL PRIMARY KEY.
+2. project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE.
+3. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+4. role VARCHAR(40) NOT NULL DEFAULT 'member'.
+5. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+6. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. UNIQUE(project_id, user_id).
+
+Catatan:
+
+1. project_access dapat menggantikan project_members secara bertahap.
+2. Untuk backward compatibility, project_members tetap dipakai dulu.
+3. Migrasi penuh dilakukan setelah semua endpoint memakai project_access.
+
+Tabel object_access:
+
+1. id SERIAL PRIMARY KEY.
+2. object_type VARCHAR(50) NOT NULL.
+3. object_id INTEGER NOT NULL.
+4. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+5. role VARCHAR(40) NOT NULL.
+6. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+9. UNIQUE(object_type, object_id, user_id).
+
+Digunakan untuk:
+
+1. Task tertentu.
+2. Document tertentu.
+3. Announcement tertentu.
+4. File/folder tertentu.
+
+6.4 Task enhancement
+
+Tambahan kolom tasks:
+
+1. creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL.
+2. archived_at TIMESTAMP NULL.
+3. archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+4. deleted_at TIMESTAMP NULL.
+5. deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+6. completed_at TIMESTAMP NULL.
+7. approved_at TIMESTAMP NULL.
+8. approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+9. due_reminder_sent_at TIMESTAMP NULL.
+
+Tabel task_labels:
+
+1. id SERIAL PRIMARY KEY.
+2. project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE.
+3. name VARCHAR(80) NOT NULL.
+4. color VARCHAR(30) DEFAULT 'slate'.
+5. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+6. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. UNIQUE(project_id, name).
+
+Tabel task_label_assignments:
+
+1. id SERIAL PRIMARY KEY.
+2. task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE.
+3. label_id INTEGER NOT NULL REFERENCES task_labels(id) ON DELETE CASCADE.
+4. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+5. UNIQUE(task_id, label_id).
+
+Tabel task_checklists:
+
+1. id SERIAL PRIMARY KEY.
+2. task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE.
+3. parent_checklist_id INTEGER REFERENCES task_checklists(id) ON DELETE CASCADE.
+4. title VARCHAR(255) NOT NULL.
+5. is_done BOOLEAN DEFAULT FALSE.
+6. assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL.
+7. due_date DATE NULL.
+8. sort_order INTEGER DEFAULT 0.
+9. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+10. completed_at TIMESTAMP NULL.
+11. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+12. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+Tambahan kolom buckets:
+
+1. type VARCHAR(30) DEFAULT 'normal'.
+2. color VARCHAR(30) DEFAULT 'slate'.
+3. is_done_bucket BOOLEAN DEFAULT FALSE.
+4. move_permission_role VARCHAR(40) DEFAULT 'member'.
+5. archived_at TIMESTAMP NULL.
+
+6.5 Comment, mention, read receipt
+
+Pengembangan task_comments:
+
+Tambahan kolom:
+
+1. parent_comment_id INTEGER REFERENCES task_comments(id) ON DELETE CASCADE.
+2. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+3. updated_at TIMESTAMP NULL.
+4. deleted_at TIMESTAMP NULL.
+5. deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+
+Tabel comment_mentions:
+
+1. id SERIAL PRIMARY KEY.
+2. comment_id INTEGER NOT NULL REFERENCES task_comments(id) ON DELETE CASCADE.
+3. mentioned_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+4. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+5. UNIQUE(comment_id, mentioned_user_id).
+
+Tabel read_receipts:
+
+1. id SERIAL PRIMARY KEY.
+2. object_type VARCHAR(50) NOT NULL.
+3. object_id INTEGER NOT NULL.
+4. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+5. read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+6. UNIQUE(object_type, object_id, user_id).
+
+object_type contoh:
+
+1. task_comment.
+2. chat_message.
+3. announcement.
+4. announcement_comment.
+5. notification.
+
+6.6 Notification center
+
+Tabel notifications:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+3. actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL.
+4. type VARCHAR(80) NOT NULL.
+5. title VARCHAR(200) NOT NULL.
+6. body TEXT.
+7. object_type VARCHAR(80).
+8. object_id INTEGER.
+9. project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE.
+10. is_read BOOLEAN DEFAULT FALSE.
+11. read_at TIMESTAMP NULL.
+12. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+Contoh type:
+
+1. task_assigned.
+2. task_mention.
+3. task_due_soon.
+4. task_overdue.
+5. approval_requested.
+6. approval_completed.
+7. comment_reply.
+8. announcement_created.
+9. checkin_due.
+10. schedule_reminder.
+
+Tabel notification_preferences:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+3. type VARCHAR(80) NOT NULL.
+4. in_app_enabled BOOLEAN DEFAULT TRUE.
+5. email_enabled BOOLEAN DEFAULT FALSE.
+6. push_enabled BOOLEAN DEFAULT FALSE.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+9. UNIQUE(user_id, type).
+
+6.7 Chat
+
+Tabel chat_rooms:
+
+1. id SERIAL PRIMARY KEY.
+2. type VARCHAR(30) NOT NULL.
+3. name VARCHAR(150).
+4. project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE.
+5. department_id INTEGER REFERENCES departments(id) ON DELETE CASCADE.
+6. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+7. archived_at TIMESTAMP NULL.
+8. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+9. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+type:
+
+1. project.
+2. department.
+3. private.
+4. company.
+
+Tabel chat_room_members:
+
+1. id SERIAL PRIMARY KEY.
+2. room_id INTEGER NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE.
+3. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+4. role VARCHAR(40) DEFAULT 'member'.
+5. last_read_message_id INTEGER NULL.
+6. joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. muted_until TIMESTAMP NULL.
+8. UNIQUE(room_id, user_id).
+
+Tabel chat_messages:
+
+1. id SERIAL PRIMARY KEY.
+2. room_id INTEGER NOT NULL REFERENCES chat_rooms(id) ON DELETE CASCADE.
+3. sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL.
+4. parent_message_id INTEGER REFERENCES chat_messages(id) ON DELETE CASCADE.
+5. body TEXT.
+6. message_type VARCHAR(30) DEFAULT 'text'.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. updated_at TIMESTAMP NULL.
+9. deleted_at TIMESTAMP NULL.
+10. deleted_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+
+6.8 Announcement atau Blast
+
+Tabel announcements:
+
+1. id SERIAL PRIMARY KEY.
+2. scope_type VARCHAR(30) NOT NULL.
+3. scope_id INTEGER NULL.
+4. title VARCHAR(200) NOT NULL.
+5. body TEXT NOT NULL.
+6. is_pinned BOOLEAN DEFAULT FALSE.
+7. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+8. archived_at TIMESTAMP NULL.
+9. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+10. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+scope_type:
+
+1. company.
+2. department.
+3. project.
+
+Tabel announcement_comments:
+
+1. id SERIAL PRIMARY KEY.
+2. announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE.
+3. user_id INTEGER REFERENCES users(id) ON DELETE SET NULL.
+4. comment TEXT NOT NULL.
+5. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+6. updated_at TIMESTAMP NULL.
+7. deleted_at TIMESTAMP NULL.
+
+6.9 Schedule atau event calendar
+
+Tabel schedule_events:
+
+1. id SERIAL PRIMARY KEY.
+2. scope_type VARCHAR(30) NOT NULL.
+3. scope_id INTEGER NULL.
+4. title VARCHAR(200) NOT NULL.
+5. description TEXT.
+6. starts_at TIMESTAMP NOT NULL.
+7. ends_at TIMESTAMP NULL.
+8. timezone VARCHAR(80) DEFAULT 'Asia/Jakarta'.
+9. location_text VARCHAR(255).
+10. meeting_url TEXT.
+11. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+12. archived_at TIMESTAMP NULL.
+13. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+14. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+Tabel schedule_event_participants:
+
+1. id SERIAL PRIMARY KEY.
+2. event_id INTEGER NOT NULL REFERENCES schedule_events(id) ON DELETE CASCADE.
+3. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+4. response_status VARCHAR(30) DEFAULT 'pending'.
+5. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+6. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. UNIQUE(event_id, user_id).
+
+Tabel schedule_reminders:
+
+1. id SERIAL PRIMARY KEY.
+2. event_id INTEGER NOT NULL REFERENCES schedule_events(id) ON DELETE CASCADE.
+3. remind_at TIMESTAMP NOT NULL.
+4. sent_at TIMESTAMP NULL.
+5. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+6.10 Docs and files
+
+Tabel document_items:
+
+1. id SERIAL PRIMARY KEY.
+2. scope_type VARCHAR(30) NOT NULL.
+3. scope_id INTEGER NULL.
+4. parent_id INTEGER REFERENCES document_items(id) ON DELETE CASCADE.
+5. type VARCHAR(30) NOT NULL.
+6. name VARCHAR(255) NOT NULL.
+7. body TEXT NULL.
+8. url TEXT NULL.
+9. file_storage_key TEXT NULL.
+10. mime_type VARCHAR(120) NULL.
+11. file_size_bytes BIGINT NULL.
+12. checksum VARCHAR(128) NULL.
+13. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+14. archived_at TIMESTAMP NULL.
+15. archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+16. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+17. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+type:
+
+1. folder.
+2. file.
+3. link.
+4. note.
+
+Tabel file_attachments:
+
+1. id SERIAL PRIMARY KEY.
+2. object_type VARCHAR(50) NOT NULL.
+3. object_id INTEGER NOT NULL.
+4. document_item_id INTEGER REFERENCES document_items(id) ON DELETE SET NULL.
+5. file_name VARCHAR(255) NOT NULL.
+6. file_storage_key TEXT NOT NULL.
+7. mime_type VARCHAR(120).
+8. file_size_bytes BIGINT.
+9. uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+10. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+6.11 Check-in
+
+Tabel checkin_templates:
+
+1. id SERIAL PRIMARY KEY.
+2. scope_type VARCHAR(30) NOT NULL.
+3. scope_id INTEGER NULL.
+4. title VARCHAR(200) NOT NULL.
+5. description TEXT.
+6. frequency VARCHAR(30) NOT NULL.
+7. is_active BOOLEAN DEFAULT TRUE.
+8. created_by INTEGER REFERENCES users(id) ON DELETE SET NULL.
+9. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+10. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+frequency:
+
+1. daily.
+2. weekly.
+3. monthly.
+4. custom.
+
+Tabel checkin_questions:
+
+1. id SERIAL PRIMARY KEY.
+2. template_id INTEGER NOT NULL REFERENCES checkin_templates(id) ON DELETE CASCADE.
+3. question TEXT NOT NULL.
+4. answer_type VARCHAR(30) DEFAULT 'text'.
+5. is_required BOOLEAN DEFAULT TRUE.
+6. sort_order INTEGER DEFAULT 0.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+answer_type:
+
+1. text.
+2. number.
+3. mood.
+4. single_choice.
+5. multi_choice.
+
+Tabel checkin_responses:
+
+1. id SERIAL PRIMARY KEY.
+2. template_id INTEGER NOT NULL REFERENCES checkin_templates(id) ON DELETE CASCADE.
+3. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+4. period_start DATE NOT NULL.
+5. period_end DATE NOT NULL.
+6. submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. UNIQUE(template_id, user_id, period_start, period_end).
+
+Tabel checkin_answers:
+
+1. id SERIAL PRIMARY KEY.
+2. response_id INTEGER NOT NULL REFERENCES checkin_responses(id) ON DELETE CASCADE.
+3. question_id INTEGER NOT NULL REFERENCES checkin_questions(id) ON DELETE CASCADE.
+4. answer_text TEXT.
+5. answer_number NUMERIC.
+6. answer_json JSONB.
+7. created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+
+6.12 Performance report
+
+Tidak wajib membuat tabel permanen di awal. Bisa dimulai dari query/report view.
+
+View atau materialized view yang disarankan:
+
+1. user_task_performance_daily.
+2. user_task_performance_period.
+3. department_task_performance_period.
+
+Jika perlu snapshot:
+
+Tabel performance_snapshots:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER REFERENCES users(id) ON DELETE CASCADE.
+3. period_start DATE NOT NULL.
+4. period_end DATE NOT NULL.
+5. total_tasks INTEGER DEFAULT 0.
+6. completed_tasks INTEGER DEFAULT 0.
+7. in_progress_tasks INTEGER DEFAULT 0.
+8. not_started_tasks INTEGER DEFAULT 0.
+9. overdue_tasks INTEGER DEFAULT 0.
+10. no_due_date_tasks INTEGER DEFAULT 0.
+11. waiting_review_tasks INTEGER DEFAULT 0.
+12. score INTEGER DEFAULT 0.
+13. rating VARCHAR(30).
+14. recommendation TEXT.
+15. generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+16. UNIQUE(user_id, period_start, period_end).
+
+6.13 Search
+
+Tahap awal tidak perlu Elasticsearch.
+
+Tabel search_index:
+
+1. id SERIAL PRIMARY KEY.
+2. object_type VARCHAR(50) NOT NULL.
+3. object_id INTEGER NOT NULL.
+4. project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE.
+5. department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL.
+6. title TEXT.
+7. content TEXT.
+8. search_vector TSVECTOR.
+9. is_archived BOOLEAN DEFAULT FALSE.
+10. updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+11. UNIQUE(object_type, object_id).
+
+Index:
+
+1. GIN index pada search_vector.
+2. B-tree index object_type.
+3. B-tree index project_id.
+4. B-tree index department_id.
+5. B-tree index is_archived.
+
+6.14 Recently viewed
+
+Tabel recently_viewed:
+
+1. id SERIAL PRIMARY KEY.
+2. user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE.
+3. object_type VARCHAR(50) NOT NULL.
+4. object_id INTEGER NOT NULL.
+5. title TEXT.
+6. path TEXT.
+7. viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP.
+8. UNIQUE(user_id, object_type, object_id).
+
+======================================================================
+7. RANCANGAN BACKEND TARGET
+======================================================================
+
+7.1 Struktur folder backend yang disarankan
+
+backend/src/
+  config/
+    db.js
+    env.js
+  controllers/
+  middlewares/
+    authMiddleware.js
+    permissionMiddleware.js
+    validationMiddleware.js
+    rateLimitMiddleware.js
+  routes/
+  services/
+    activityService.js
+    announcementService.js
+    authService.js
+    checkinService.js
+    commentService.js
+    documentService.js
+    notificationService.js
+    permissionService.js
+    performanceService.js
+    scheduleService.js
+    searchService.js
+    taskService.js
+  repositories/
+    taskRepository.js
+    performanceRepository.js
+    searchRepository.js
+  schemas/
+    taskSchemas.js
+    authSchemas.js
+    documentSchemas.js
+  utils/
+  database/
+    schema.sql
+    migrations/
+
+Catatan:
+
+1. Repositories tidak perlu dibuat untuk semua domain sekaligus.
+2. Mulai dari service yang query-nya sudah terlalu besar.
+3. taskService saat ini panjang dan layak dipecah bertahap.
+
+7.2 Middleware auth
+
+Endpoint yang harus publik:
+
+1. POST /api/auth/login.
+2. POST /api/auth/accept-invitation.
+3. POST /api/auth/request-password-reset.
+4. POST /api/auth/reset-password.
+5. GET /.
+
+Endpoint lain harus butuh auth.
+
+Header:
+
+1. Authorization: Bearer <token>.
+
+Flow:
+
+1. Middleware membaca Bearer token.
+2. Hash token dan lookup ke auth_sessions.
+3. Pastikan session belum expired dan belum revoked.
+4. Join users.
+5. Pastikan user aktif.
+6. Set req.user.
+7. Controller/service memakai req.user.id dan req.user.role.
+
+7.3 Middleware permission
+
+Pola:
+
+1. requirePermission(resource, action).
+2. requireProjectAccess(action).
+3. requireObjectAccess(objectType, action).
+
+Contoh resource/action:
+
+1. project:create.
+2. project:update.
+3. project:archive.
+4. task:create.
+5. task:update.
+6. task:move.
+7. task:approve.
+8. task:delete.
+9. comment:create.
+10. document:upload.
+11. document:archive.
+12. announcement:create.
+13. schedule:create.
+
+Permission resolution:
+
+1. super_admin selalu allowed.
+2. admin allowed untuk semua kecuali action super admin only.
+3. project role override global role.
+4. object access override project role jika lebih spesifik.
+5. creator privilege berlaku untuk object yang dibuat user.
+6. backend tidak boleh hanya bergantung pada role dari frontend.
+
+7.4 Validation
+
+Rekomendasi dependency:
+
+1. zod untuk runtime validation.
+
+Alasan:
+
+1. Payload API makin kompleks.
+2. Validasi manual saat ini tersebar di service.
+3. Zod memberi schema yang reusable untuk create/update.
+
+Contoh schema:
+
+taskCreateSchema:
+
+1. project_id required number.
+2. title required string min 1 max 200.
+3. description optional string nullable.
+4. assignee_ids array number.
+5. lead_id optional number nullable.
+6. start_date optional date string.
+7. end_date optional date string.
+8. progress number 0..100.
+9. status enum.
+10. priority enum.
+
+7.5 Activity service
+
+Fungsi:
+
+1. logActivity(payload).
+2. listActivities(filters).
+3. buildActivityDescription(action, metadata).
+
+Payload standar:
+
+1. actor_user_id.
+2. action.
+3. object_type.
+4. object_id.
+5. project_id.
+6. task_id.
+7. description.
+8. metadata JSONB.
+
+Perubahan schema activity_logs yang disarankan:
+
+1. actor_user_id.
+2. object_type.
+3. object_id.
+4. metadata JSONB.
+5. ip_address.
+6. user_agent.
+
+Action yang wajib dicatat:
+
+1. auth.login.
+2. user.create.
+3. user.update.
+4. project.create.
+5. project.update.
+6. project.archive.
+7. bucket.create.
+8. bucket.update.
+9. task.create.
+10. task.update.
+11. task.move.
+12. task.progress.update.
+13. task.realization.start.
+14. task.realization.finish.
+15. task.realization.manual.
+16. task.approve.
+17. task.archive.
+18. task.delete.
+19. comment.create.
+20. document.upload.
+21. document.archive.
+22. announcement.create.
+23. schedule.create.
+
+7.6 Notification service
+
+Fungsi:
+
+1. createNotification(payload).
+2. notifyTaskAssignees(task, actor).
+3. notifyMentionedUsers(comment, mentions).
+4. notifyApprovalRequest(task).
+5. notifyDueSoonTasks().
+6. markAsRead(notificationId, userId).
+7. markAllAsRead(userId).
+
+Trigger awal:
+
+1. Task assigned.
+2. Comment mention.
+3. Task waiting review.
+4. Approval completed.
+5. Due soon.
+6. Overdue.
+7. Announcement created.
+
+7.7 Realtime layer
+
+Pilihan teknis:
+
+1. Socket.IO.
+2. Server-Sent Events.
+
+Rekomendasi:
+
+1. Untuk chat dan read receipts, Socket.IO lebih cocok.
+2. Untuk notifikasi dan activity feed saja, SSE cukup.
+3. Karena target fitur mencakup chat realtime, gunakan Socket.IO.
+
+Channel/socket room:
+
+1. user:<userId>.
+2. project:<projectId>.
+3. department:<departmentId>.
+4. chat:<roomId>.
+5. task:<taskId>.
+
+Event:
+
+1. notification.created.
+2. task.updated.
+3. task.moved.
+4. comment.created.
+5. comment.read.
+6. chat.message.created.
+7. chat.message.read.
+8. announcement.created.
+9. schedule.reminder.
+
+Auth socket:
+
+1. Client mengirim token.
+2. Server validasi session.
+3. Join user room.
+4. Join project rooms yang user punya access.
+
+7.8 Background jobs
+
+Butuh untuk:
+
+1. Due soon reminders.
+2. Overdue notifications.
+3. Schedule event reminders.
+4. Check-in reminders.
+5. Performance snapshot generation.
+6. Search index rebuild.
+
+Tahap awal:
+
+1. node-cron cukup.
+
+Tahap lanjut:
+
+1. BullMQ + Redis jika job makin banyak.
+
+7.9 API endpoint target
+
+Auth:
+
+1. POST /api/auth/login.
+2. POST /api/auth/logout.
+3. GET /api/auth/me.
+4. POST /api/auth/change-password.
+5. POST /api/auth/invite.
+6. POST /api/auth/accept-invitation.
+
+Activity:
+
+1. GET /api/activities.
+2. GET /api/projects/:projectId/activities.
+3. GET /api/users/:userId/activities.
+
+Notifications:
+
+1. GET /api/notifications.
+2. PATCH /api/notifications/:id/read.
+3. PATCH /api/notifications/read-all.
+4. GET /api/notification-preferences.
+5. PATCH /api/notification-preferences.
+
+Comments:
+
+1. GET /api/tasks/:taskId/comments.
+2. POST /api/tasks/:taskId/comments.
+3. PATCH /api/comments/:id.
+4. DELETE /api/comments/:id.
+5. POST /api/comments/:id/read.
+
+Chat:
+
+1. GET /api/chat/rooms.
+2. POST /api/chat/rooms.
+3. GET /api/chat/rooms/:roomId/messages.
+4. POST /api/chat/rooms/:roomId/messages.
+5. PATCH /api/chat/messages/:id.
+6. DELETE /api/chat/messages/:id.
+7. POST /api/chat/messages/:id/read.
+
+Announcements:
+
+1. GET /api/announcements.
+2. POST /api/announcements.
+3. GET /api/announcements/:id.
+4. PATCH /api/announcements/:id.
+5. PATCH /api/announcements/:id/archive.
+6. POST /api/announcements/:id/read.
+7. GET /api/announcements/:id/comments.
+8. POST /api/announcements/:id/comments.
+
+Schedule:
+
+1. GET /api/schedule/events.
+2. POST /api/schedule/events.
+3. GET /api/schedule/events/:id.
+4. PATCH /api/schedule/events/:id.
+5. PATCH /api/schedule/events/:id/archive.
+6. POST /api/schedule/events/:id/response.
+7. GET /api/schedule/ical/:token.
+
+Documents:
+
+1. GET /api/documents.
+2. POST /api/documents/folders.
+3. POST /api/documents/notes.
+4. POST /api/documents/links.
+5. POST /api/documents/files.
+6. GET /api/documents/:id.
+7. PATCH /api/documents/:id.
+8. PATCH /api/documents/:id/archive.
+9. PATCH /api/documents/:id/unarchive.
+10. DELETE /api/documents/:id.
+
+Check-in:
+
+1. GET /api/checkins/templates.
+2. POST /api/checkins/templates.
+3. PATCH /api/checkins/templates/:id.
+4. GET /api/checkins/due.
+5. POST /api/checkins/responses.
+6. GET /api/checkins/responses.
+7. GET /api/checkins/summary.
+
+Performance:
+
+1. GET /api/performance/users.
+2. GET /api/performance/users/:userId.
+3. GET /api/performance/departments.
+4. GET /api/performance/bottlenecks.
+5. GET /api/performance/export.
+
+Search:
+
+1. GET /api/search?q=&type=&project_id=&include_archived=.
+2. GET /api/recently-viewed.
+3. POST /api/recently-viewed.
+
+======================================================================
+8. RANCANGAN FRONTEND TARGET
+======================================================================
+
+8.1 Navigasi target
+
+Sidebar target:
+
+1. Dashboard.
+2. Inbox.
+3. My Tasks.
+4. All Tasks.
+5. Projects.
+6. Department Gantt.
+7. Calendar.
+8. Announcements.
+9. Check-ins.
+10. Documents.
+11. Performance.
+12. Team.
+13. Locations.
+14. Settings.
+
+Project detail tabs target:
+
+1. Overview.
+2. Board.
+3. List.
+4. Calendar.
+5. Gantt.
+6. Chat.
+7. Announcements.
+8. Docs.
+9. Activity.
+10. Access.
+
+8.2 Global layout target
+
+Komponen:
+
+1. Sidebar.
+2. Topbar.
+3. GlobalSearchCommand.
+4. NotificationBell.
+5. UserMenu.
+6. Breadcrumb.
+7. Toast.
+8. ConfirmDialog.
+
+Topbar target:
+
+1. Search button dengan shortcut Ctrl + /.
+2. Notification bell dengan unread count.
+3. Current user.
+4. Quick create task.
+5. Quick create schedule.
+
+8.3 Dashboard target
+
+Tambahan widget:
+
+1. My overdue tasks.
+2. Tasks waiting my approval.
+3. Department workload.
+4. Employee performance leaderboard.
+5. Project risks.
+6. Recent activity.
+7. Upcoming schedule.
+8. Check-in completion rate.
+
+8.4 My Tasks
+
+Fungsi:
+
+1. Menampilkan semua task yang assign ke current user.
+2. Filter by status, priority, project, date.
+3. Tab: Today, Upcoming, Overdue, Waiting Review, Done.
+4. Quick action: start, finish, update progress, comment.
+5. Calendar mini view.
+6. Gantt mini view opsional.
+
+Endpoint:
+
+1. GET /api/tasks?assignee_id=currentUserId.
+
+Pengembangan backend:
+
+1. Support assignee=current_user keyword atau frontend kirim user id.
+2. Permission memastikan user hanya melihat task yang boleh dilihat.
+
+8.5 All Tasks command center
+
+Fungsi:
+
+1. Semua tugas lintas project.
+2. Filter kuat.
+3. Saved filters.
+4. Bulk action.
+5. Column chooser.
+6. Export.
+7. View mode: table, board, calendar, Gantt.
+
+Teknis:
+
+1. Gunakan existing TaskListPage sebagai fondasi.
+2. Pisahkan komponen TaskTable, TaskBulkToolbar, TaskSavedFilters.
+3. Untuk data besar, tambah pagination server-side.
+
+8.6 Task detail panel/modal target
+
+Isi:
+
+1. Header: title, project, status, priority.
+2. PIC dan lead.
+3. Dates: planned dan actual.
+4. Progress.
+5. Description rich text sederhana.
+6. Checklist.
+7. Labels.
+8. Attachments.
+9. Comments.
+10. Activity.
+11. Access.
+12. Read receipts.
+
+UX:
+
+1. Jangan membuat modal terlalu panjang tanpa struktur.
+2. Gunakan tab atau sections.
+3. Quick actions tetap terlihat.
+
+8.7 Comments UI
+
+Komponen:
+
+1. CommentComposer.
+2. CommentList.
+3. CommentItem.
+4. MentionPicker.
+5. ReadByPopover.
+6. AttachmentDropzone.
+
+Fitur:
+
+1. Mention dengan @nama.
+2. Reply thread sederhana.
+3. Edit comment.
+4. Delete comment jika allowed.
+5. Read-by list.
+
+8.8 Chat UI
+
+Komponen:
+
+1. ChatRoomList.
+2. ChatWindow.
+3. ChatMessageList.
+4. ChatComposer.
+5. MessageReadBy.
+6. MediaGallery.
+
+Tahap awal:
+
+1. Project chat saja.
+2. Private chat fase berikutnya.
+
+8.9 Announcement UI
+
+Halaman:
+
+1. AnnouncementsPage.
+2. ProjectAnnouncementsTab.
+
+Komponen:
+
+1. AnnouncementCard.
+2. AnnouncementDetail.
+3. AnnouncementFormModal.
+4. AnnouncementCommentThread.
+5. ReadByPopover.
+
+Fitur:
+
+1. Pinned announcement.
+2. Scope company/project/department.
+3. Comments.
+4. Read-by.
+5. Archive/unarchive.
+
+8.10 Schedule UI
+
+Halaman:
+
+1. CalendarPage baru untuk agenda.
+2. CalendarSettingsPage tetap untuk working calendar.
+
+Catatan penting:
+
+1. Jangan mencampur working calendar dan schedule event.
+2. Working calendar menjawab "hari kerja".
+3. Schedule menjawab "agenda kerja".
+
+Komponen:
+
+1. ScheduleCalendar.
+2. ScheduleList.
+3. ScheduleFormModal.
+4. EventDetailDrawer.
+5. ParticipantSelector.
+
+8.11 Documents UI
+
+Halaman:
+
+1. DocumentsPage global.
+2. ProjectDocsTab.
+3. DepartmentDocsTab.
+
+Komponen:
+
+1. DocumentToolbar.
+2. FolderTree.
+3. DocumentGrid.
+4. DocumentTable.
+5. UploadDropzone.
+6. LinkFormModal.
+7. NoteEditor.
+8. ArchivedItemsModal.
+
+Tahap awal:
+
+1. Folder.
+2. File upload kecil.
+3. Link.
+4. Archive/unarchive.
+
+Tahap lanjut:
+
+1. Preview.
+2. Thumbnail.
+3. Resumable upload.
+4. Versioning.
+
+8.12 Check-in UI
+
+Halaman:
+
+1. CheckinsPage.
+2. CheckinTemplatePage.
+3. CheckinResponsePage.
+4. CheckinSummaryPage.
+
+Fungsi:
+
+1. Manager membuat template.
+2. User melihat check-in yang perlu dijawab.
+3. User submit jawaban.
+4. Manager melihat summary.
+5. Data check-in masuk performance context.
+
+8.13 Performance UI
+
+Halaman:
+
+1. PerformancePage.
+2. UserPerformanceDetailPage.
+3. DepartmentPerformancePage.
+
+Widget:
+
+1. Rating Bagus/Cukup/Kurang.
+2. Score.
+3. Completed count.
+4. In progress count.
+5. Not started count.
+6. Overdue count.
+7. Waiting review count.
+8. No due date count.
+9. Bottleneck tasks.
+10. Recommendations.
+
+Formula awal:
+
+score = 100
+score += completed_ratio * 30
+score += in_progress_ratio * 10
+score -= overdue_ratio * 50
+score -= stale_task_ratio * 20
+score -= no_due_date_ratio * 10
+score -= waiting_review_overdue_ratio * 10
+score dibatasi 0 sampai 100
+
+Rating:
+
+1. Bagus: score >= 80.
+2. Cukup: score >= 60 dan < 80.
+3. Kurang: score < 60.
+
+Catatan:
+
+1. Formula harus transparan.
+2. Jangan menjadikan rating sebagai hukuman tanpa konteks.
+3. Tampilkan data mentah agar manager bisa menilai adil.
+
+8.14 Global search UI
+
+Komponen:
+
+1. SearchCommandDialog.
+2. SearchResultGroup.
+3. SearchResultItem.
+4. RecentItems.
+5. SearchFilters.
+
+Shortcut:
+
+1. Ctrl + /.
+
+Hasil search:
+
+1. Project.
+2. Task.
+3. Comment.
+4. Announcement.
+5. Schedule.
+6. Document.
+7. User.
+
+======================================================================
+9. ROADMAP IMPLEMENTASI DARI HULU KE HILIR
+======================================================================
+
+Roadmap ini dibuat dengan prinsip: fondasi dulu, kolaborasi berikutnya, intelligence setelah data terkumpul.
+
+======================================================================
+FASE 0 - PERSIAPAN, BASELINE, DAN GOVERNANCE
+Estimasi: 3 sampai 5 hari kerja
+======================================================================
+
+Tujuan:
+
+1. Memastikan pengembangan berikutnya aman.
+2. Membuat baseline teknis.
+3. Mengurangi risiko perubahan besar.
+
+Step teknis:
+
+1. Buat branch pengembangan.
+   - Nama: feature/professional-collaboration-roadmap.
+   - Pastikan git status bersih atau pahami semua perubahan aktif.
+
+2. Backup database lokal.
+   - Gunakan pg_dump.
+   - Simpan sebagai backup sebelum migration.
+
+3. Inventaris endpoint aktif.
+   - Catat routes backend.
+   - Catat payload utama task/project/user.
+   - Catat response shape yang dipakai frontend.
+
+4. Tambah script development quality.
+   - Backend: npm run lint jika ESLint ditambahkan.
+   - Frontend: npm run build sudah ada.
+   - Tambah format/lint bertahap.
+
+5. Buat migration tracking.
+   - Pastikan setiap migration punya tanggal dan nama jelas.
+   - Contoh: 20260521_activity_log_enhancement.sql.
+
+6. Tetapkan standar changelog.
+   - Semua perubahan wajib masuk readme.txt.
+   - Semua perubahan schema wajib dicatat dengan dampak bisnis dan teknis.
+
+Output fase 0:
+
+1. Baseline teknis terdokumentasi.
+2. Backup database tersedia.
+3. Branch kerja siap.
+4. Migration strategy siap.
+
+Risiko:
+
+1. Jika langsung masuk fitur tanpa baseline, regresi sulit dilacak.
+
+======================================================================
+FASE 1 - AUTH, SESSION, RBAC DASAR, DAN AUDIT LOG
+Estimasi: 1 sampai 2 minggu
+======================================================================
+
+Tujuan:
+
+1. Membuat aplikasi aman sebelum fitur kolaborasi diperluas.
+2. Semua mutation penting memiliki actor user.
+3. Role mulai digunakan konsisten.
+
+Step database:
+
+1. Tambah migration auth hardening.
+   - users.is_active.
+   - users.last_login_at.
+   - auth_sessions.
+   - password_reset_tokens.
+
+2. Tambah migration activity log enhancement.
+   - activity_logs.actor_user_id.
+   - activity_logs.object_type.
+   - activity_logs.object_id.
+   - activity_logs.metadata JSONB.
+   - activity_logs.ip_address.
+   - activity_logs.user_agent.
+
+3. Tambah migration role/permission dasar.
+   - role_permissions.
+   - Seed role_permissions awal.
+
+Step backend:
+
+1. Tambah dependency bcrypt dan zod.
+   - bcrypt untuk password hashing.
+   - zod untuk request validation.
+
+2. Refactor authService.
+   - Login membuat session token.
+   - Token disimpan sebagai hash di auth_sessions.
+   - Response login mengembalikan token dan sanitized user.
+
+3. Tambah authMiddleware.
+   - Validasi Authorization Bearer token.
+   - Set req.user.
+
+4. Tambah permissionService.
+   - can(user, action, resource, context).
+   - requirePermission middleware.
+
+5. Update routes.
+   - Lindungi semua /api selain /api/auth/login dan GET /.
+
+6. Buat activityService.
+   - logActivity.
+   - listActivities.
+
+7. Update mutation service.
+   - createTask mencatat task.create.
+   - updateTask mencatat task.update.
+   - moveTask mencatat task.move.
+   - updateTaskProgress mencatat task.progress.update.
+   - updateTaskRealization mencatat task.realization.*.
+   - approveTask mencatat task.approve.
+   - deleteTask minimal menjadi archive atau mencatat task.delete.
+
+Step frontend:
+
+1. Update authApi.
+   - Simpan token.
+   - Tambah getCurrentUser.
+   - Tambah logout.
+
+2. Update api.js.
+   - Inject Authorization header.
+   - Handle 401 dengan redirect login.
+
+3. Update uiStore/session store.
+   - currentUser.
+   - token.
+   - logout action.
+
+4. Tambah guard route.
+   - Jika belum login, redirect ke LoginPage.
+
+5. Tambah Activity tab yang membaca endpoint activity.
+
+Acceptance criteria:
+
+1. User login dengan token session.
+2. Endpoint task tidak bisa diakses tanpa auth.
+3. User inactive tidak bisa login.
+4. Semua perubahan task utama tercatat di activity.
+5. Project detail tab Activity menampilkan feed nyata.
+
+Testing:
+
+1. POST /api/auth/login berhasil.
+2. GET /api/tasks tanpa token ditolak.
+3. GET /api/tasks dengan token berhasil.
+4. Buat task lalu cek activity_logs.
+5. Move task lalu cek activity_logs.
+6. Approve task lalu cek activity_logs.
+7. npm run build frontend.
+
+======================================================================
+FASE 2 - MY TASKS, ALL TASKS, TASK ENHANCEMENT, DAN CALENDAR VIEW
+Estimasi: 2 sampai 4 minggu
+======================================================================
+
+Tujuan:
+
+1. Membuat task management harian lebih kuat.
+2. Menyamai pola Cicle pada All Tasks dan multi-view.
+3. Tetap mempertahankan Gantt sebagai keunggulan.
+
+Step database:
+
+1. Tambah kolom tasks:
+   - creator_id.
+   - archived_at.
+   - archived_by.
+   - completed_at.
+   - approved_at.
+   - approved_by.
+
+2. Tambah task_labels.
+
+3. Tambah task_label_assignments.
+
+4. Tambah task_checklists.
+
+5. Tambah metadata buckets:
+   - type.
+   - color.
+   - is_done_bucket.
+   - move_permission_role.
+   - archived_at.
+
+Step backend:
+
+1. Update task create.
+   - Simpan creator_id dari req.user.
+   - Support labels.
+   - Support checklist initial items opsional.
+
+2. Update task update.
+   - Support labels.
+   - Support archive/unarchive.
+
+3. Tambah task label endpoints.
+   - GET /api/projects/:projectId/task-labels.
+   - POST /api/projects/:projectId/task-labels.
+   - PATCH /api/task-labels/:id.
+   - DELETE /api/task-labels/:id.
+
+4. Tambah checklist endpoints.
+   - GET /api/tasks/:taskId/checklists.
+   - POST /api/tasks/:taskId/checklists.
+   - PATCH /api/task-checklists/:id.
+   - DELETE /api/task-checklists/:id.
+
+5. Tambah bulk action endpoint.
+   - POST /api/tasks/bulk-update.
+   - Payload: task_ids, action, values.
+
+6. Perkuat getTasks filters.
+   - my_tasks.
+   - due_date range.
+   - include_archived.
+   - label_id.
+   - search basic.
+   - pagination.
+
+7. Tambah calendar task endpoint jika perlu.
+   - GET /api/tasks/calendar.
+
+Step frontend:
+
+1. Tambah MyTasksPage.
+   - Tabs: Today, Upcoming, Overdue, Waiting Review, Done.
+   - Quick actions.
+
+2. Perkuat TaskListPage sebagai All Tasks.
+   - Advanced filter.
+   - Saved filter fase lanjut.
+   - Bulk select.
+   - Bulk toolbar.
+
+3. Tambah TaskCalendarView.
+   - Month view sederhana.
+   - Klik task membuka detail.
+
+4. Update TaskFormModal.
+   - Label selector.
+   - Checklist initial items.
+   - Creator tidak perlu user input.
+
+5. Update TaskDetailModal.
+   - Section labels.
+   - Section checklist.
+   - Section comments placeholder untuk fase berikutnya.
+   - Section activity.
+
+6. Update BoardColumn.
+   - Tampilkan card count.
+   - Tampilkan warna bucket.
+   - Respect move permission.
+
+Acceptance criteria:
+
+1. User bisa melihat My Tasks.
+2. Manager bisa melihat All Tasks lintas project sesuai permission.
+3. Task bisa diberi label.
+4. Task bisa punya checklist.
+5. Calendar view menampilkan task berdasarkan start/end/due date.
+6. Bulk update status berjalan dan tercatat di activity.
+7. Bucket menampilkan total card count.
+
+Testing:
+
+1. Create task dengan label.
+2. Update checklist done.
+3. Bulk move beberapa task.
+4. Filter My Tasks per status.
+5. Build frontend.
+
+======================================================================
+FASE 3 - COMMENT, MENTION, READ BY, NOTIFICATION CENTER
+Estimasi: 3 sampai 5 minggu
+======================================================================
+
+Tujuan:
+
+1. Mengubah task menjadi ruang diskusi kerja.
+2. Mengurangi komunikasi tercecer di WhatsApp.
+3. Memberi kepastian pesan sudah dibaca.
+
+Step database:
+
+1. Enhance task_comments.
+2. Tambah comment_mentions.
+3. Tambah read_receipts.
+4. Tambah notifications.
+5. Tambah notification_preferences.
+
+Step backend:
+
+1. Buat commentService.
+   - listTaskComments.
+   - createTaskComment.
+   - updateTaskComment.
+   - deleteTaskComment.
+   - extractMentions.
+   - markCommentRead.
+
+2. Buat notificationService.
+   - create notification.
+   - list notifications.
+   - mark read.
+   - notify mentions.
+   - notify task assignment.
+   - notify approval request.
+
+3. Tambah endpoints comments.
+
+4. Tambah endpoints notifications.
+
+5. Update taskService.
+   - Saat task assigned, create notification.
+   - Saat task waiting review, notify lead.
+   - Saat approval done, notify assignees.
+
+6. Tambah read-by logic.
+   - Saat user membuka task detail, frontend bisa POST mark comments read.
+   - Atau mark per comment saat terlihat.
+
+Step frontend:
+
+1. Tambah NotificationBell.
+2. Tambah NotificationsPage atau InboxPage.
+3. Tambah CommentThread di TaskDetailModal.
+4. Tambah MentionPicker.
+5. Tambah ReadByPopover.
+6. Tambah unread indicators.
+
+Acceptance criteria:
+
+1. User bisa komentar di task.
+2. Mention @user membuat notification.
+3. Lead mendapat notification saat task waiting review.
+4. Read-by tampil untuk komentar.
+5. Notification bisa mark as read.
+
+Testing:
+
+1. Buat komentar dengan mention.
+2. Login sebagai mentioned user dan cek notification.
+3. Buka task lalu mark comment read.
+4. Cek read_receipts.
+5. Build frontend.
+
+======================================================================
+FASE 4 - REALTIME UPDATE DAN PROJECT CHAT
+Estimasi: 3 sampai 5 minggu
+======================================================================
+
+Tujuan:
+
+1. Membuat kolaborasi terasa hidup.
+2. Update board/comment/notification tanpa manual refresh.
+3. Menambahkan project chat sebagai alternatif grup WhatsApp.
+
+Step database:
+
+1. Tambah chat_rooms.
+2. Tambah chat_room_members.
+3. Tambah chat_messages.
+4. Gunakan read_receipts untuk chat_message.
+
+Step backend:
+
+1. Tambah dependency socket.io.
+2. Ubah server startup agar HTTP server dipakai Express dan Socket.IO.
+3. Tambah socket auth.
+4. Tambah chatService.
+5. Tambah chat routes.
+6. Emit event saat:
+   - notification.created.
+   - comment.created.
+   - task.updated.
+   - task.moved.
+   - chat.message.created.
+
+Step frontend:
+
+1. Tambah socket client.
+2. Join user room setelah login.
+3. Listen notification event.
+4. Listen task update event.
+5. Listen comment event.
+6. Tambah ProjectChatTab.
+7. Tambah ChatRoomList dan ChatWindow.
+
+Acceptance criteria:
+
+1. Jika user A komentar, user B melihat update tanpa refresh.
+2. Jika task digeser di board, user lain mendapat update.
+3. Project chat bisa kirim dan menerima pesan realtime.
+4. Read-by chat message berjalan.
+
+Testing:
+
+1. Buka dua browser dengan dua user.
+2. Kirim chat dari browser A.
+3. Pastikan browser B menerima realtime.
+4. Move card di browser A.
+5. Pastikan browser B refresh data atau menerima update event.
+
+======================================================================
+FASE 5 - ANNOUNCEMENT, SCHEDULE, DAN CHECK-IN
+Estimasi: 4 sampai 6 minggu
+======================================================================
+
+Tujuan:
+
+1. Menambahkan pola kerja Cicle: Blast, Schedule, Check-in.
+2. Mengurangi meeting dan informasi tenggelam.
+
+Step database:
+
+1. Tambah announcements.
+2. Tambah announcement_comments.
+3. Tambah schedule_events.
+4. Tambah schedule_event_participants.
+5. Tambah schedule_reminders.
+6. Tambah checkin_templates.
+7. Tambah checkin_questions.
+8. Tambah checkin_responses.
+9. Tambah checkin_answers.
+
+Step backend:
+
+1. Buat announcementService.
+2. Buat scheduleService.
+3. Buat checkinService.
+4. Tambah routes masing-masing.
+5. Tambah reminder job untuk schedule.
+6. Tambah reminder job untuk check-in due.
+7. Notification untuk announcement baru.
+8. Read receipts untuk announcement.
+
+Step frontend:
+
+1. Tambah AnnouncementsPage.
+2. Tambah ProjectAnnouncementsTab.
+3. Tambah ScheduleCalendarPage.
+4. Pisahkan CalendarSettingsPage menjadi "Working Calendar Settings".
+5. Tambah CheckinsPage.
+6. Tambah CheckinTemplateForm.
+7. Tambah CheckinResponseForm.
+8. Tambah CheckinSummary.
+
+Acceptance criteria:
+
+1. Manager bisa membuat announcement per project.
+2. User bisa melihat dan menandai announcement terbaca.
+3. User bisa komentar di announcement.
+4. Manager bisa membuat event agenda.
+5. User bisa melihat upcoming agenda.
+6. Manager bisa membuat check-in template.
+7. User bisa submit check-in.
+8. Manager bisa melihat summary check-in.
+
+Testing:
+
+1. Create announcement dan cek notification.
+2. Mark announcement read.
+3. Create schedule event dan cek calendar.
+4. Create check-in template dan response.
+
+======================================================================
+FASE 6 - DOCUMENTS, FILES, ARCHIVE, DAN GLOBAL SEARCH
+Estimasi: 4 sampai 6 minggu
+======================================================================
+
+Tujuan:
+
+1. Menyatukan dokumen, file, dan link penting.
+2. Mengurangi file tercecer di chat/email/drive.
+3. Membuat semua informasi mudah dicari.
+
+Step database:
+
+1. Tambah document_items.
+2. Tambah file_attachments.
+3. Tambah search_index.
+4. Tambah recently_viewed.
+
+Step backend:
+
+1. Tambah upload middleware.
+   - Tahap awal: multer local storage.
+   - Validasi file size dan mime type.
+
+2. Buat documentService.
+   - createFolder.
+   - uploadFile.
+   - createLink.
+   - createNote.
+   - archive.
+   - unarchive.
+   - list.
+
+3. Buat searchService.
+   - indexTask.
+   - indexComment.
+   - indexAnnouncement.
+   - indexDocument.
+   - search.
+   - rebuildIndex.
+
+4. Trigger indexing setelah mutation penting.
+
+5. Tambah recentlyViewedService.
+
+Step frontend:
+
+1. Tambah DocumentsPage.
+2. Tambah ProjectDocsTab.
+3. Tambah upload dropzone.
+4. Tambah folder tree.
+5. Tambah archived items.
+6. Tambah GlobalSearchCommand dengan Ctrl + /.
+7. Tambah recently viewed.
+
+Acceptance criteria:
+
+1. User bisa membuat folder.
+2. User bisa upload file.
+3. User bisa menyimpan link.
+4. User bisa archive/unarchive document.
+5. Search menemukan task, comment, announcement, document.
+6. Shortcut Ctrl + / membuka search.
+
+Testing:
+
+1. Upload file valid.
+2. Upload file terlalu besar ditolak.
+3. Archive document lalu search include_archived.
+4. Search keyword dari task/comment/document.
+
+======================================================================
+FASE 7 - PERFORMANCE REPORT DAN MANAGEMENT INTELLIGENCE
+Estimasi: 3 sampai 5 minggu
+======================================================================
+
+Tujuan:
+
+1. Memberi leader laporan kinerja otomatis seperti Cicle.
+2. Mengubah data task menjadi insight manajemen.
+3. Mengurangi laporan manual mingguan/bulanan.
+
+Step backend:
+
+1. Buat performanceService.
+2. Buat query per user per periode.
+3. Kategori task:
+   - selesai.
+   - dikerjakan.
+   - belum.
+   - terlambat.
+   - waiting review.
+   - tanpa deadline.
+4. Hitung score.
+5. Tentukan rating.
+6. Generate recommendation.
+7. Detect bottlenecks.
+8. Tambah export endpoint.
+
+Formula detail awal:
+
+1. total_tasks = semua task assigned dalam periode.
+2. completed_tasks = status Done atau progress 100.
+3. in_progress_tasks = status In Progress.
+4. not_started_tasks = status Not Started.
+5. overdue_tasks = end_date < today dan progress < 100.
+6. no_due_date_tasks = end_date IS NULL.
+7. waiting_review_tasks = status Waiting Review.
+
+Rasio:
+
+1. completed_ratio = completed_tasks / total_tasks.
+2. overdue_ratio = overdue_tasks / total_tasks.
+3. stale_ratio = task in progress lebih dari N hari tanpa update.
+4. no_due_date_ratio = no_due_date_tasks / total_tasks.
+
+Score:
+
+1. Base score 60.
+2. Tambah sampai 30 poin dari completed_ratio.
+3. Tambah sampai 10 poin dari in_progress_ratio sehat.
+4. Kurangi sampai 40 poin dari overdue_ratio.
+5. Kurangi sampai 15 poin dari stale_ratio.
+6. Kurangi sampai 10 poin dari no_due_date_ratio.
+7. Clamp 0 sampai 100.
+
+Rating:
+
+1. Bagus: 80 sampai 100.
+2. Cukup: 60 sampai 79.
+3. Kurang: 0 sampai 59.
+
+Recommendation examples:
+
+1. Jika overdue tinggi: "Prioritaskan penyelesaian task overdue dan review estimasi deadline."
+2. Jika not started tinggi: "Pecah task besar menjadi subtask dan mulai task prioritas."
+3. Jika waiting review tinggi: "Lead perlu mempercepat approval agar pekerjaan tidak tertahan."
+4. Jika no due date tinggi: "Lengkapi deadline agar pekerjaan bisa dipantau."
+
+Step frontend:
+
+1. Tambah PerformancePage.
+2. Tambah user performance list.
+3. Tambah user detail.
+4. Tambah department summary.
+5. Tambah bottleneck card.
+6. Tambah export button.
+
+Acceptance criteria:
+
+1. Manager bisa memilih periode laporan.
+2. Manager melihat rating per user.
+3. Manager melihat breakdown task.
+4. Manager melihat rekomendasi.
+5. Manager bisa drill down ke task penghambat.
+
+Testing:
+
+1. Seed data performance.
+2. Validasi hasil query secara manual.
+3. Pastikan task multi PIC tidak double count secara tidak terkendali.
+4. Export berjalan.
+
+======================================================================
+FASE 8 - HARDENING PRODUKSI, PWA, BACKUP, DAN OBSERVABILITY
+Estimasi: 3 sampai 6 minggu
+======================================================================
+
+Tujuan:
+
+1. Menyiapkan aplikasi untuk penggunaan serius.
+2. Mengurangi risiko data hilang, akses liar, dan downtime.
+
+Backend hardening:
+
+1. Rate limiting.
+2. Helmet/security headers.
+3. Request logging.
+4. Structured error log.
+5. Input size limit per endpoint.
+6. File upload scanning strategy.
+7. CORS production whitelist.
+8. Environment validation.
+
+Database:
+
+1. Backup harian.
+2. Restore drill.
+3. Index review.
+4. Slow query monitoring.
+5. Migration rollback plan.
+
+Frontend:
+
+1. PWA manifest.
+2. Responsive mobile layout.
+3. Offline fallback minimal.
+4. Push notification fase lanjut.
+5. Error boundary.
+
+Deployment:
+
+1. Separate frontend and backend build.
+2. Reverse proxy Nginx/Apache.
+3. HTTPS.
+4. PM2 atau systemd untuk backend.
+5. Database backup.
+6. Log rotation.
+
+Security:
+
+1. Password hashing bcrypt.
+2. Session revoke.
+3. Least privilege DB user.
+4. Audit log immutable policy.
+5. Regular dependency audit.
+6. Penetration test checklist.
+
+Acceptance criteria:
+
+1. Build frontend sukses.
+2. Backend start production mode.
+3. HTTPS aktif.
+4. Backup dan restore sudah diuji.
+5. Role permission diuji.
+6. File upload aman.
+
+======================================================================
+10. PRIORITAS IMPLEMENTASI PRAKTIS
+======================================================================
+
+Jika waktu dan tim terbatas, urutan paling bernilai adalah:
+
+1. Auth + session + RBAC dasar.
+2. Activity log nyata.
+3. My Tasks dan All Tasks.
+4. Comment + mention + notification.
+5. Performance report.
+6. Documents.
+7. Global search.
+8. Announcement.
+9. Schedule.
+10. Check-in.
+11. Realtime chat penuh.
+
+Alasan:
+
+1. Auth/RBAC wajib sebelum kolaborasi.
+2. Activity log memberi kepercayaan manajemen.
+3. My Tasks/All Tasks langsung meningkatkan produktivitas harian.
+4. Comment/mention/notification mengurangi WhatsApp.
+5. Performance report memberi nilai bisnis langsung ke leader.
+6. Documents/search memperkuat knowledge hub.
+7. Chat realtime sebaiknya dibangun setelah notification dan permission matang.
+
+======================================================================
+11. DEPENDENCY YANG DISARANKAN
+======================================================================
+
+Backend:
+
+1. bcrypt
+   - Untuk password hashing.
+
+2. zod
+   - Untuk validasi request.
+
+3. socket.io
+   - Untuk realtime chat dan notification.
+
+4. multer
+   - Untuk upload file tahap awal.
+
+5. node-cron
+   - Untuk reminder job sederhana.
+
+6. helmet
+   - Untuk security headers.
+
+7. express-rate-limit
+   - Untuk rate limiting endpoint sensitif.
+
+8. pino atau winston
+   - Untuk structured logging.
+
+Frontend:
+
+1. socket.io-client
+   - Untuk realtime.
+
+2. @tanstack/react-query
+   - Dipertimbangkan ketika client-side caching makin kompleks.
+   - Saat ini hooks manual masih bisa dipertahankan, tetapi realtime dan invalidation akan lebih mudah dengan query cache.
+
+3. react-hook-form + zod resolver
+   - Dipertimbangkan untuk form kompleks seperti task, document, check-in.
+
+4. lucide-react
+   - Untuk icon UI yang lebih profesional.
+
+5. clsx + tailwind-merge
+   - Untuk className conditional yang lebih rapi.
+
+Catatan disiplin dependency:
+
+1. Jangan menambah semua dependency sekaligus.
+2. Tambahkan hanya saat modul membutuhkan.
+3. Catat alasan dependency di readme.txt.
+
+======================================================================
+12. STRATEGI MIGRASI KE TYPESCRIPT
+======================================================================
+
+Kondisi:
+
+1. Project saat ini menggunakan JavaScript.
+2. Instruksi ideal project mengarah ke TypeScript.
+3. Migrasi total sekaligus akan berisiko tinggi.
+
+Strategi bertahap:
+
+Tahap 1:
+
+1. Tambah jsconfig/tsconfig allowJs.
+2. Tambah JSDoc type untuk service kritikal.
+3. Tambah Zod schema untuk payload API.
+
+Tahap 2:
+
+1. Convert frontend logic/services ke .ts.
+2. Convert helpers ke .ts.
+3. Define shared domain types:
+   - Task.
+   - Project.
+   - User.
+   - Department.
+   - Notification.
+   - ActivityLog.
+
+Tahap 3:
+
+1. Convert komponen baru ke .tsx.
+2. Komponen lama dikonversi saat disentuh.
+
+Tahap 4:
+
+1. Backend tetap JS dengan Zod dulu, atau migrasi service baru ke TS jika build pipeline siap.
+
+Prinsip:
+
+1. Jangan mengubah semua file sekaligus.
+2. Jangan refactor logic bisnis saat convert type.
+3. Setiap konversi harus build.
+
+======================================================================
+13. STRATEGI TESTING
+======================================================================
+
+13.1 Backend testing
+
+Jenis test:
+
+1. Unit test untuk helper:
+   - workday calculation.
+   - progress clamp.
+   - performance score.
+   - permission resolution.
+
+2. Integration test untuk API:
+   - auth.
+   - task CRUD.
+   - task move.
+   - approval.
+   - comment.
+   - notification.
+   - documents.
+
+3. Database test:
+   - migration apply.
+   - constraints.
+   - rollback manual jika ada.
+
+Tools:
+
+1. Vitest atau Jest.
+2. Supertest untuk Express.
+3. Test database terpisah.
+
+13.2 Frontend testing
+
+Jenis test:
+
+1. Build test.
+2. Component smoke test.
+3. Browser manual test.
+4. Playwright untuk alur kritikal fase lanjut.
+
+Alur kritikal:
+
+1. Login.
+2. Create project.
+3. Create task.
+4. Move card.
+5. Update progress.
+6. Finish task.
+7. Approve task.
+8. Comment mention.
+9. Notification read.
+10. Upload document.
+11. Search.
+
+13.3 User acceptance test
+
+Scenario manager:
+
+1. Manager membuka dashboard.
+2. Manager melihat overdue.
+3. Manager membuka performance report.
+4. Manager membuat announcement.
+5. Manager assign task.
+6. Manager approve task.
+
+Scenario staff:
+
+1. Staff membuka My Tasks.
+2. Staff start task.
+3. Staff comment dan mention lead.
+4. Staff finish task.
+5. Staff submit check-in.
+
+Scenario admin:
+
+1. Admin invite user.
+2. Admin assign role.
+3. Admin archive project.
+4. Admin restore archived item.
+
+======================================================================
+14. RISIKO DAN MITIGASI
+======================================================================
+
+Risiko 1: Scope terlalu besar.
+
+Mitigasi:
+
+1. Gunakan fase.
+2. Setiap fase harus punya acceptance criteria.
+3. Jangan membangun chat penuh sebelum notification/comment matang.
+
+Risiko 2: Permission terlambat dibangun.
+
+Mitigasi:
+
+1. RBAC fase 1.
+2. Semua endpoint mutation wajib auth.
+3. Backend selalu validasi izin.
+
+Risiko 3: Activity log tidak konsisten.
+
+Mitigasi:
+
+1. Semua mutation memakai activityService.
+2. Buat helper standar.
+3. Review endpoint mutation satu per satu.
+
+Risiko 4: Query performance memburuk.
+
+Mitigasi:
+
+1. Tambah index.
+2. Pagination.
+3. Materialized view untuk report jika perlu.
+4. Hindari fetch semua data untuk All Tasks besar.
+
+Risiko 5: Realtime membuat state frontend tidak stabil.
+
+Mitigasi:
+
+1. Mulai dari notification realtime.
+2. Lalu comments.
+3. Lalu board updates.
+4. Lalu chat.
+5. Gunakan invalidation/refetch sederhana sebelum optimistic update kompleks.
+
+Risiko 6: File upload membuka celah keamanan.
+
+Mitigasi:
+
+1. Batasi ukuran file.
+2. Validasi mime type.
+3. Simpan di folder non-public jika perlu signed URL.
+4. Jangan eksekusi file upload.
+5. Scan file fase produksi.
+
+Risiko 7: Performance rating disalahartikan.
+
+Mitigasi:
+
+1. Tampilkan formula.
+2. Tampilkan data mentah.
+3. Tampilkan rating sebagai indikator, bukan keputusan final.
+4. Beri ruang komentar manager.
+
+======================================================================
+15. DEFINISI DONE GLOBAL
+======================================================================
+
+Setiap fitur baru dianggap selesai jika:
+
+1. Schema/migration tersedia.
+2. Backend service tersedia.
+3. Endpoint tersedia.
+4. Validasi input tersedia.
+5. Permission dicek di backend.
+6. Activity log tercatat untuk mutation penting.
+7. Notification dibuat jika relevan.
+8. Frontend UI tersedia.
+9. Loading, empty, dan error state tersedia.
+10. Build frontend sukses.
+11. Smoke test API sukses.
+12. Dokumentasi perubahan dicatat di readme.txt.
+
+======================================================================
+16. DELIVERABLE DOKUMENTASI PER FASE
+======================================================================
+
+Untuk setiap fase, hasil dokumentasi minimal:
+
+1. Migration file.
+2. API contract.
+3. UI route/page yang berubah.
+4. Role/permission yang terlibat.
+5. Business process sebelum dan sesudah.
+6. Testing checklist.
+7. Known risks.
+8. Catatan readme.txt.
+
+======================================================================
+17. CONTOH URUTAN IMPLEMENTASI NYATA UNTUK FASE 1
+======================================================================
+
+Langkah 1:
+
+1. Buat migration 20260521_auth_sessions.sql.
+2. Jalankan migration di database lokal.
+3. Verifikasi tabel auth_sessions muncul.
+
+Langkah 2:
+
+1. Install bcrypt dan zod.
+2. Update authService untuk hash password bcrypt.
+3. Buat fallback agar password lama sha256 masih bisa login satu kali.
+4. Setelah login sukses, rehash ke bcrypt.
+
+Langkah 3:
+
+1. Buat authMiddleware.
+2. Pasang middleware ke semua /api routes kecuali auth login.
+3. Update frontend api.js agar mengirim Bearer token.
+
+Langkah 4:
+
+1. Buat permissionService.
+2. Tambah permission check pada task create/update/delete/move/approve.
+3. Gunakan role super_admin, admin, manager, member dulu.
+
+Langkah 5:
+
+1. Buat activityService.
+2. Update taskService mutation.
+3. Tambah endpoint GET /api/activities.
+4. Tambah Project Activity UI.
+
+Langkah 6:
+
+1. Run backend.
+2. Login.
+3. Create task.
+4. Move task.
+5. Approve task.
+6. Cek activity feed.
+7. Build frontend.
+8. Catat perubahan di readme.txt.
+
+======================================================================
+18. CONTOH URUTAN IMPLEMENTASI NYATA UNTUK COMMENT + NOTIFICATION
+======================================================================
+
+Langkah 1:
+
+1. Migration comment_mentions, read_receipts, notifications.
+2. Update task_comments.
+
+Langkah 2:
+
+1. Buat commentService.
+2. Buat notificationService.
+3. Buat endpoint comment.
+
+Langkah 3:
+
+1. Implement mention parser.
+2. Format mention sederhana: @Nama User.
+3. Lebih aman: frontend mengirim mentioned_user_ids eksplisit.
+
+Langkah 4:
+
+1. Saat komentar dibuat, simpan comment.
+2. Simpan mentions.
+3. Buat notification untuk mentioned users.
+4. Catat activity comment.create.
+
+Langkah 5:
+
+1. Frontend TaskDetailModal memuat comments.
+2. CommentComposer bisa memilih mention.
+3. NotificationBell menampilkan unread count.
+
+Langkah 6:
+
+1. Mark comment read saat user membuka detail.
+2. ReadByPopover menampilkan daftar pembaca.
+
+Langkah 7:
+
+1. Test dua user.
+2. User A mention User B.
+3. User B mendapat notification.
+4. User B membuka task.
+5. Read receipt tercatat.
+
+======================================================================
+19. CATATAN BISNIS PROSES TARGET
+======================================================================
+
+19.1 Proses tugas harian
+
+Sebelum:
+
+1. Manager membuat project.
+2. Manager membuat task.
+3. PIC melihat task di board/list.
+4. PIC update progress.
+5. Lead approve task.
+
+Sesudah:
+
+1. Manager membuat project dan mengatur member/access.
+2. Manager membuat task dengan PIC, lead, label, checklist, deadline.
+3. PIC mendapat notification.
+4. PIC melihat task di My Tasks.
+5. PIC berdiskusi di comment task.
+6. PIC mention lead jika butuh keputusan.
+7. PIC start dan finish realization.
+8. Lead mendapat approval request.
+9. Lead approve atau meminta koreksi.
+10. Semua aktivitas tercatat.
+11. Performance report otomatis ikut berubah.
+
+19.2 Proses pengumuman
+
+1. Manager membuat announcement untuk project/department/company.
+2. Semua target user mendapat notification.
+3. User membaca announcement.
+4. Read-by memperlihatkan siapa yang sudah membaca.
+5. Diskusi dilakukan di thread announcement.
+
+19.3 Proses check-in
+
+1. Manager membuat template daily/weekly check-in.
+2. Sistem mengingatkan user sesuai jadwal.
+3. User mengisi jawaban.
+4. Manager melihat ringkasan.
+5. Jawaban menjadi konteks tambahan untuk performance review.
+
+19.4 Proses dokumen
+
+1. User upload file atau simpan link di project docs.
+2. Dokumen bisa difolderkan.
+3. Dokumen bisa dilampirkan ke task/comment/announcement.
+4. Jika tidak dipakai, dokumen diarchive, bukan langsung hilang.
+5. Manager bisa restore jika diperlukan.
+6. Semua file bisa dicari melalui Search All.
+
+19.5 Proses performance review
+
+1. Manager pilih periode.
+2. Sistem menghitung task per user.
+3. Sistem menampilkan rating dan data mentah.
+4. Manager membuka bottleneck tasks.
+5. Manager memberikan coaching/action plan.
+6. Periode berikutnya dibandingkan untuk melihat perbaikan.
+
+======================================================================
+20. PENUTUP
+======================================================================
+
+Pengembangan aplikasi ini sebaiknya dilakukan bertahap dan disiplin.
+
+Fokus utama:
+
+1. Jangan mengorbankan stabilitas Planner + Gantt yang sudah ada.
+2. Jangan membangun fitur kolaborasi tanpa auth, permission, dan audit.
+3. Jangan menjadikan chat sebagai pusat semua pekerjaan; task tetap menjadi sumber kebenaran pekerjaan.
+4. Gunakan data aktivitas untuk menghasilkan laporan kinerja yang objektif.
+5. Bangun fitur yang paling dekat dengan kebutuhan harian user lebih dulu: My Tasks, comments, notifications, activity, performance.
+
+Jika roadmap ini dijalankan, aplikasi akan berkembang dari MVP Project Planner menjadi platform kerja internal yang profesional, dengan kemampuan setara Cicle pada area kolaborasi, tetapi tetap punya diferensiasi kuat di Gantt, timeline, department monitoring, dan working calendar.

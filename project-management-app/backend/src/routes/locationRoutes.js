@@ -1,5 +1,6 @@
 const express = require('express');
 const locationController = require('../controllers/locationController');
+const { requirePermission } = require('../middlewares/permissionMiddleware');
 
 const router = express.Router();
 
@@ -8,10 +9,10 @@ router.get('/', locationController.listLocations);
 // Route untuk membaca detail satu lokasi.
 router.get('/:id', locationController.getLocation);
 // Route untuk membuat lokasi baru.
-router.post('/', locationController.createLocation);
+router.post('/', requirePermission('location', 'create'), locationController.createLocation);
 // Route untuk mengubah lokasi.
-router.put('/:id', locationController.updateLocation);
+router.put('/:id', requirePermission('location', 'update'), locationController.updateLocation);
 // Route untuk menghapus lokasi.
-router.delete('/:id', locationController.deleteLocation);
+router.delete('/:id', requirePermission('location', 'delete'), locationController.deleteLocation);
 
 module.exports = router;

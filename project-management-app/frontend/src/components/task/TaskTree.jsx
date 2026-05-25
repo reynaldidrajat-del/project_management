@@ -180,6 +180,8 @@ function TaskRow({
   onAddSubtask,
   onRealization,
   onManualRealization,
+  selectedTaskIds,
+  onSelectionChange,
 }) {
   const hasChildren = Boolean(task.children?.length);
   const hasActualStarted = Boolean(task.actual_start_date);
@@ -190,12 +192,22 @@ function TaskRow({
     approvalPending && (currentUserRole === 'super_admin' || (task.lead_id && Number(task.lead_id) === Number(currentUserId)));
   const realizationAction = approvalPending ? null : !hasActualStarted ? 'start' : hasActualStarted && !hasActualFinished ? 'finish' : null;
   const realizationLabel = realizationAction === 'start' ? 'Mulai' : realizationAction === 'finish' ? 'Selesai' : 'Done';
+  const selected = selectedTaskIds?.has(Number(task.id));
+  const selectable = Boolean(onSelectionChange);
 
   return (
     <>
       <tr className="text-xs">
-        <td className="min-w-[360px] max-w-[460px] px-3 py-2">
+        <td className="min-w-[390px] max-w-[490px] px-3 py-2">
           <div className="flex items-center gap-2" style={{ paddingLeft: `${(task.level || 0) * 18}px` }}>
+            {selectable ? (
+              <input
+                checked={selected}
+                className="shrink-0"
+                type="checkbox"
+                onChange={(event) => onSelectionChange(task.id, event.target.checked)}
+              />
+            ) : null}
             <button
               className="h-6 w-6 shrink-0 rounded-md border border-border bg-white text-xs font-bold text-text-muted disabled:bg-slate-50"
               disabled={!hasChildren}
@@ -265,6 +277,8 @@ function TaskRow({
               onAddSubtask={onAddSubtask}
               onRealization={onRealization}
               onManualRealization={onManualRealization}
+              selectedTaskIds={selectedTaskIds}
+              onSelectionChange={onSelectionChange}
             />
           ))
         : null}
@@ -273,7 +287,17 @@ function TaskRow({
 }
 
 // Tabel task bertingkat yang bisa expand/collapse.
-function TaskTree({ tasks = [], onApprove, onEdit, onDelete, onAddSubtask, onRealization, onManualRealization }) {
+function TaskTree({
+  tasks = [],
+  selectedTaskIds,
+  onSelectionChange,
+  onApprove,
+  onEdit,
+  onDelete,
+  onAddSubtask,
+  onRealization,
+  onManualRealization,
+}) {
   const [expanded, setExpanded] = useState(new Set());
   const currentUserId = useUiStore((state) => state.currentUserId);
   const currentUserRole = useUiStore((state) => state.currentUser?.role);
@@ -328,6 +352,8 @@ function TaskTree({ tasks = [], onApprove, onEdit, onDelete, onAddSubtask, onRea
                 onAddSubtask={onAddSubtask}
                 onRealization={onRealization}
                 onManualRealization={onManualRealization}
+                selectedTaskIds={selectedTaskIds}
+                onSelectionChange={onSelectionChange}
               />
             ))}
           </tbody>

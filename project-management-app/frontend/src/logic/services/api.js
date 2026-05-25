@@ -24,7 +24,12 @@ api.interceptors.request.use((config) => {
 
   try {
     const storedUser = window.localStorage.getItem('project-management-auth-user');
+    const authToken = window.localStorage.getItem('project-management-auth-token');
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
+
+    if (authToken) {
+      config.headers.Authorization = `Bearer ${authToken}`;
+    }
 
     if (currentUser?.id) {
       config.headers['X-User-Id'] = currentUser.id;
@@ -35,6 +40,23 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (typeof window !== 'undefined' && error?.response?.status === 401) {
+      window.localStorage.removeItem('project-management-auth-user');
+      window.localStorage.removeItem('project-management-auth-token');
+      window.localStorage.removeItem('project-management-current-user-id');
+
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 // Mengambil isi data utama dari response backend yang bentuknya { success, message, data }.
 export const unwrapData = (response) => response.data.data;

@@ -2,15 +2,17 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 import AppRouter from './router';
 import MainLayout from '../components/layout/MainLayout';
+import RealtimeBridge from '../components/realtime/RealtimeBridge';
 import LoginPage from '../pages/LoginPage';
 import { useUiStore } from '../store/uiStore';
 
 // Komponen utama aplikasi: membungkus semua halaman dengan layout yang sama.
 function App() {
   const location = useLocation();
+  const authToken = useUiStore((state) => state.authToken);
   const currentUser = useUiStore((state) => state.currentUser);
 
-  if (!currentUser) {
+  if (!currentUser || !authToken) {
     if (location.pathname === '/login') {
       return <LoginPage />;
     }
@@ -24,6 +26,7 @@ function App() {
 
   return (
     <MainLayout>
+      <RealtimeBridge />
       <AppRouter />
     </MainLayout>
   );

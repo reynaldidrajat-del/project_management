@@ -26,14 +26,23 @@ const inferStatusCode = (error) => {
     return 404;
   }
 
-  if (message.includes('password tidak valid')) {
+  if (
+    message.includes('password tidak valid') ||
+    message.includes('Autentikasi') ||
+    message.includes('Sesi login')
+  ) {
     return 401;
+  }
+
+  if (message.includes('tidak memiliki izin') || message.includes('Akses ditolak')) {
+    return 403;
   }
 
   if (
     message.includes('wajib') ||
     message.includes('tidak valid') ||
     message.includes('tidak boleh') ||
+    message.includes('tidak aktif') ||
     message.includes('Hanya') ||
     message.includes('hanya') ||
     message.includes('harus')

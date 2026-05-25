@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { logActivity } = require('./activityService');
 
 // Query dasar untuk membaca project beserta owner, member, dan department terkait.
 const PROJECT_SELECT = `
@@ -230,7 +231,7 @@ const validateProject = (payload) => {
 };
 
 // Membuat project baru lalu menyimpan owner/member project.
-const createProject = async (payload) => {
+const createProject = async (payload, context = {}) => {
   validateProject(payload);
 
   const result = await query(
@@ -251,11 +252,25 @@ const createProject = async (payload) => {
 
   await replaceProjectMembers(result.rows[0].id, payload.member_ids || [], payload.owner_id || null);
 
-  return getProjectById(result.rows[0].id);
+  const project = await getProjectById(result.rows[0].id);
+
+  await logActivity({
+    actor_user_id: context.actor_user_id,
+    project_id: project.id,
+    action: 'project.create',
+    object_type: 'project',
+    object_id: project.id,
+    description: `Project "${project.name}" dibuat.`,
+    metadata: { member_ids: payload.member_ids || [], owner_id: payload.owner_id || null },
+    ip_address: context.ip_address,
+    user_agent: context.user_agent,
+  });
+
+  return project;
 };
 
 // Mengubah project dan, jika dikirim, memperbarui daftar membernya.
-const updateProject = async (id, payload) => {
+const updateProject = async (id, payload, context = {}) => {
   validateProject(payload);
 
   const result = await query(
@@ -290,11 +305,43 @@ const updateProject = async (id, payload) => {
     await replaceProjectMembers(id, payload.member_ids || [], payload.owner_id || null);
   }
 
-  return getProjectById(id);
+  const project = await getProjectById(id);
+
+  await logActivity({
+    actor_user_id: context.actor_user_id,
+    project_id: project.id,
+    action: 'project.update',
+    object_type: 'project',
+    object_id: project.id,
+    description: `Project "${project.name}" diperbarui.`,
+    metadata: { changed_fields: Object.keys(payload || {}) },
+    ip_address: context.ip_address,
+    user_agent: context.user_agent,
+  });
+
+  return project;
 };
 
 // Menghapus project berdasarkan id.
-const deleteProject = async (id) => {
+const deleteProject = async (id, context = {}) => {
+  const currentProject = await getProjectById(id);
+
+  if (!currentProject) {
+    throw new Error('Project tidak ditemukan.');
+  }
+
+  await logActivity({
+    actor_user_id: context.actor_user_id,
+    project_id: currentProject.id,
+    action: 'project.delete',
+    object_type: 'project',
+    object_id: Number(id),
+    description: `Project "${currentProject.name}" dihapus.`,
+    metadata: { deleted_project_id: Number(id) },
+    ip_address: context.ip_address,
+    user_agent: context.user_agent,
+  });
+
   const result = await query('DELETE FROM projects WHERE id = $1 RETURNING id', [id]);
 
   if (!result.rows[0]) {

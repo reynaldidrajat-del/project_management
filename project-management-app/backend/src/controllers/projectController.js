@@ -7,6 +7,12 @@ const {
 } = require('../services/projectService');
 const { asyncHandler, sendError, sendSuccess } = require('../utils/responseUtils');
 
+const getRequestActivityContext = (req) => ({
+  actor_user_id: req.user?.id || null,
+  ip_address: req.ip,
+  user_agent: req.headers['user-agent'],
+});
+
 // Mengambil daftar project dengan filter dari frontend.
 const listProjects = asyncHandler(async (req, res) => {
   const projects = await getProjects(req.query);
@@ -26,19 +32,19 @@ const getProject = asyncHandler(async (req, res) => {
 
 // Membuat project baru beserta member awalnya lewat service project.
 const createProjectController = asyncHandler(async (req, res) => {
-  const project = await createProject(req.body);
+  const project = await createProject(req.body, getRequestActivityContext(req));
   sendSuccess(res, project, 'Project berhasil dibuat.', 201);
 });
 
 // Mengubah data project dan daftar membernya.
 const updateProjectController = asyncHandler(async (req, res) => {
-  const project = await updateProject(req.params.id, req.body);
+  const project = await updateProject(req.params.id, req.body, getRequestActivityContext(req));
   sendSuccess(res, project, 'Project berhasil diperbarui.');
 });
 
 // Menghapus project berdasarkan id.
 const deleteProjectController = asyncHandler(async (req, res) => {
-  const project = await deleteProject(req.params.id);
+  const project = await deleteProject(req.params.id, getRequestActivityContext(req));
   sendSuccess(res, project, 'Project berhasil dihapus.');
 });
 

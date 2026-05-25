@@ -1,5 +1,12 @@
 const { query } = require('../config/db');
+const { logActivity } = require('../services/activityService');
 const { asyncHandler, sendError, sendSuccess } = require('../utils/responseUtils');
+
+const getRequestActivityContext = (req) => ({
+  actor_user_id: req.user?.id || null,
+  ip_address: req.ip,
+  user_agent: req.headers['user-agent'],
+});
 
 // Query dasar untuk mengambil user sekaligus nama department-nya.
 const USER_SELECT = `
@@ -58,6 +65,14 @@ const createUser = asyncHandler(async (req, res) => {
   );
 
   const user = await query(`${USER_SELECT} WHERE u.id = $1`, [result.rows[0].id]);
+  await logActivity({
+    ...getRequestActivityContext(req),
+    action: 'user.create',
+    object_type: 'user',
+    object_id: user.rows[0].id,
+    description: `User "${user.rows[0].name}" dibuat.`,
+    metadata: { role: user.rows[0].role, department_id: user.rows[0].department_id, location_id: user.rows[0].location_id },
+  });
   return sendSuccess(res, user.rows[0], 'User berhasil dibuat.', 201);
 });
 
@@ -89,11 +104,33 @@ const updateUser = asyncHandler(async (req, res) => {
   }
 
   const user = await query(`${USER_SELECT} WHERE u.id = $1`, [req.params.id]);
+  await logActivity({
+    ...getRequestActivityContext(req),
+    action: 'user.update',
+    object_type: 'user',
+    object_id: user.rows[0].id,
+    description: `User "${user.rows[0].name}" diperbarui.`,
+    metadata: { role: user.rows[0].role, department_id: user.rows[0].department_id, location_id: user.rows[0].location_id },
+  });
   return sendSuccess(res, user.rows[0], 'User berhasil diperbarui.');
 });
 
 // Menghapus user berdasarkan id.
 const deleteUser = asyncHandler(async (req, res) => {
+  const existingUser = await query(`${USER_SELECT} WHERE u.id = $1`, [req.params.id]);
+
+  if (!existingUser.rows[0]) {
+    return sendError(res, 'User tidak ditemukan.', 'User tidak ditemukan.', 404);
+  }
+
+  await logActivity({
+    ...getRequestActivityContext(req),
+    action: 'user.delete',
+    object_type: 'user',
+    object_id: existingUser.rows[0].id,
+    description: `User "${existingUser.rows[0].name}" dihapus.`,
+  });
+
   const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
 
   if (!result.rows[0]) {

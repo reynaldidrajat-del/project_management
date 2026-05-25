@@ -58,13 +58,13 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const user = await login({
+      const session = await login({
         identifier: form.identifier.trim(),
         password: form.password,
       });
 
-      setAuthenticatedUser(user);
-      showToast({ type: 'success', message: `Login sebagai ${user.name}.` });
+      setAuthenticatedUser(session.user, session.token);
+      showToast({ type: 'success', message: `Login sebagai ${session.user.name}.` });
       navigate(fromPath, { replace: true });
     } catch (error) {
       setFormError(getApiErrorMessage(error));

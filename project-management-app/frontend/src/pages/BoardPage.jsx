@@ -7,6 +7,7 @@ import ProjectHeader from '../components/project/ProjectHeader';
 import TaskDetailModal from '../components/task/TaskDetailModal';
 import TaskFormModal from '../components/task/TaskFormModal';
 import { useProject, useBuckets, useProjects } from '../logic/hooks/useProjects';
+import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useProjectTasks } from '../logic/hooks/useTasks';
 import { useUsers } from '../logic/hooks/useUsers';
 import { getApiErrorMessage } from '../logic/services/api';
@@ -22,17 +23,18 @@ function BoardPage() {
   const { projects } = useProjects();
   const { users } = useUsers();
   const { buckets, refetch: refetchBuckets } = useBuckets(projectId);
+  const { labels, refetch: refetchLabels } = useTaskLabels(projectId);
   const { tasks, loading, refetch } = useProjectTasks(projectId, { tree: true });
   const showToast = useUiStore((state) => state.showToast);
 
   // Memuat ulang bucket dan task setelah ada perubahan di board.
   const refreshBoardData = async () => {
-    await Promise.all([refetch(), refetchProject()]);
+    await Promise.all([refetch(), refetchProject(), refetchLabels()]);
   };
 
   // Alias refresh yang dikirim ke komponen board setelah drag and drop.
   const refreshBucketsAndTasks = async () => {
-    await Promise.all([refetchBuckets(), refetch()]);
+    await Promise.all([refetchBuckets(), refetchLabels(), refetch()]);
   };
 
   // Membuat task baru untuk project aktif dari form modal.
@@ -64,6 +66,7 @@ function BoardPage() {
 
       <TaskDetailModal
         task={selectedTask}
+        labels={labels}
         projects={projects}
         users={users}
         tasks={tasks}
@@ -73,6 +76,7 @@ function BoardPage() {
       <TaskFormModal
         open={formOpen}
         defaultProjectId={projectId}
+        labels={labels}
         projects={projects}
         users={users}
         tasks={tasks}

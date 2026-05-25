@@ -67,13 +67,26 @@ const verifyDatabaseConnection = async () => {
 const verifyApplicationSchema = async () => {
   const requiredTables = [
     'activity_logs',
+    'auth_sessions',
     'buckets',
     'calendar_exceptions',
+    'chat_messages',
+    'chat_room_members',
+    'chat_rooms',
+    'comment_mentions',
     'departments',
     'locations',
+    'notification_preferences',
+    'notifications',
+    'password_reset_tokens',
     'project_members',
     'projects',
+    'read_receipts',
+    'role_permissions',
     'task_assignees',
+    'task_checklists',
+    'task_label_assignments',
+    'task_labels',
     'tasks',
     'users',
   ];
@@ -108,6 +121,21 @@ const verifyApplicationSchema = async () => {
 
   if (!passwordColumnResult.rowCount) {
     throw new Error('Kolom users.password_hash belum tersedia. Jalankan migration login terlebih dahulu.');
+  }
+
+  const phaseOneColumnResult = await query(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'users'
+        AND column_name = ANY($1)
+    `,
+    [['is_active', 'last_login_at']],
+  );
+
+  if (phaseOneColumnResult.rowCount < 2) {
+    throw new Error('Kolom auth fase 1 belum lengkap. Jalankan migration 20260521_phase1_auth_rbac_activity.sql.');
   }
 
   const superAdminResult = await query(

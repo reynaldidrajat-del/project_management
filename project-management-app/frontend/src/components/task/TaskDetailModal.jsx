@@ -1,20 +1,35 @@
 import { useEffect, useState } from 'react';
 
-import { approveTask, createTask, deleteTask, updateTask, updateTaskProgress, updateTaskRealization } from '../../logic/services/taskApi';
+import {
+  approveTask,
+  createTask,
+  createTaskChecklist,
+  deleteTask,
+  deleteTaskChecklist,
+  getTaskChecklists,
+  updateTask,
+  updateTaskChecklist,
+  updateTaskProgress,
+  updateTaskRealization,
+} from '../../logic/services/taskApi';
 import { formatDate } from '../../logic/helpers/dateHelper';
 import { getApiErrorMessage } from '../../logic/services/api';
+import { getTaskLabelBadgeClass } from '../../logic/helpers/taskLabelHelper';
 import { getTaskAssigneeNames, getTaskLeadName } from '../../logic/helpers/taskPeopleHelper';
 import { getPriorityBadgeClass, getProgressBarClass, getStatusBadgeClass } from '../../logic/helpers/statusHelper';
 import { getRealizationModeBadgeClass, getRealizationModeLabel } from '../../logic/helpers/realizationHelper';
 import { useUiStore } from '../../store/uiStore';
+import CommentThread from './CommentThread';
 import SubtaskList from './SubtaskList';
 import TaskFormModal from './TaskFormModal';
 import TaskRealizationManualModal from './TaskRealizationManualModal';
 
 // Modal detail task untuk melihat, mengedit, menghapus, dan mengelola realisasi/subtask.
-function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks = [], onClose, onSaved }) {
+function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks = [], labels = [], onClose, onSaved }) {
   const [mode, setMode] = useState(null);
   const [currentTask, setCurrentTask] = useState(selectedTask);
+  const [checklists, setChecklists] = useState([]);
+  const [checklistTitle, setChecklistTitle] = useState('');
   const [progress, setProgress] = useState(selectedTask?.progress || 0);
   const showToast = useUiStore((state) => state.showToast);
   const currentUserId = useUiStore((state) => state.currentUserId);
@@ -25,6 +40,35 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
     setProgress(selectedTask?.progress || 0);
     setMode(null);
   }, [selectedTask]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchChecklists = async () => {
+      if (!currentTask?.id) {
+        setChecklists([]);
+        return;
+      }
+
+      try {
+        const rows = await getTaskChecklists(currentTask.id);
+
+        if (active) {
+          setChecklists(rows);
+        }
+      } catch (error) {
+        if (active) {
+          showToast({ type: 'error', message: getApiErrorMessage(error) });
+        }
+      }
+    };
+
+    fetchChecklists();
+
+    return () => {
+      active = false;
+    };
+  }, [currentTask?.id, showToast]);
 
   if (!currentTask) {
     return null;
@@ -186,6 +230,48 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
     }
   };
 
+  const refreshChecklists = async () => {
+    setChecklists(await getTaskChecklists(task.id));
+  };
+
+  const handleChecklistSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!checklistTitle.trim()) {
+      showToast({ type: 'error', message: 'Judul checklist wajib diisi.' });
+      return;
+    }
+
+    try {
+      await createTaskChecklist(task.id, { title: checklistTitle.trim() });
+      setChecklistTitle('');
+      await refreshChecklists();
+      await onSaved?.();
+    } catch (error) {
+      showToast({ type: 'error', message: getApiErrorMessage(error) });
+    }
+  };
+
+  const handleChecklistToggle = async (checklist) => {
+    try {
+      await updateTaskChecklist(checklist.id, { is_done: !checklist.is_done });
+      await refreshChecklists();
+      await onSaved?.();
+    } catch (error) {
+      showToast({ type: 'error', message: getApiErrorMessage(error) });
+    }
+  };
+
+  const handleChecklistDelete = async (checklist) => {
+    try {
+      await deleteTaskChecklist(checklist.id);
+      await refreshChecklists();
+      await onSaved?.();
+    } catch (error) {
+      showToast({ type: 'error', message: getApiErrorMessage(error) });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 p-4">
       <div className="card max-h-[92vh] w-full max-w-3xl overflow-y-auto p-5">
@@ -303,6 +389,29 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
         </div>
 
         <div className="mt-4 rounded-xl border border-border p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="label">Labels</p>
+              <p className="text-sm text-text-muted">Label dipakai untuk filter dan pengelompokan task.</p>
+            </div>
+            <button className="btn-secondary" type="button" onClick={() => setMode('edit')}>
+              Edit Labels
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {task.labels?.length ? (
+              task.labels.map((label) => (
+                <span key={label.id} className={`badge ${getTaskLabelBadgeClass(label.color)}`}>
+                  {label.name}
+                </span>
+              ))
+            ) : (
+              <p className="text-sm text-text-muted">Belum ada label.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="label">Progress</p>
@@ -328,6 +437,47 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
           </div>
         </div>
 
+        <div className="mt-4 rounded-xl border border-border p-3">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="label">Checklist</p>
+              <p className="text-sm text-text-muted">
+                {checklists.filter((item) => item.is_done).length}/{checklists.length} item selesai.
+              </p>
+            </div>
+          </div>
+          <form className="mb-3 flex gap-2" onSubmit={handleChecklistSubmit}>
+            <input
+              className="field"
+              placeholder="Tambah checklist"
+              value={checklistTitle}
+              onChange={(event) => setChecklistTitle(event.target.value)}
+            />
+            <button className="btn-primary" type="submit">
+              Add
+            </button>
+          </form>
+          <div className="space-y-2">
+            {checklists.length ? (
+              checklists.map((checklist) => (
+                <div key={checklist.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold">
+                    <input checked={checklist.is_done} type="checkbox" onChange={() => handleChecklistToggle(checklist)} />
+                    <span className={checklist.is_done ? 'truncate text-text-muted line-through' : 'truncate text-text-dark'}>
+                      {checklist.title}
+                    </span>
+                  </label>
+                  <button className="text-xs font-bold text-danger" type="button" onClick={() => handleChecklistDelete(checklist)}>
+                    Delete
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-lg bg-slate-50 p-3 text-sm text-text-muted">Belum ada checklist.</p>
+            )}
+          </div>
+        </div>
+
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="font-bold">Subtasks</h3>
@@ -343,6 +493,8 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
             }}
           />
         </div>
+
+        <CommentThread task={task} users={users} />
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button className="btn-secondary" type="button" onClick={() => setMode('edit')}>
@@ -363,6 +515,7 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
         projects={projects}
         users={users}
         tasks={tasks}
+        labels={labels}
         onClose={() => setMode(null)}
         onSubmit={handleEditSubmit}
       />
@@ -372,6 +525,7 @@ function TaskDetailModal({ task: selectedTask, projects = [], users = [], tasks 
         projects={projects}
         users={users}
         tasks={tasks}
+        labels={labels}
         onClose={() => setMode(null)}
         onSubmit={handleSubtaskSubmit}
       />

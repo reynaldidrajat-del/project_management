@@ -29,6 +29,21 @@ export const useTasks = (filters = {}) => {
     fetchTasks();
   }, [filterKey]);
 
+  useEffect(() => {
+    const handleRealtimeTaskEvent = () => {
+      fetchTasks();
+    };
+
+    window.addEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+    window.addEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+
+    return () => {
+      window.removeEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+      window.removeEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+
   return { tasks, loading, error, refetch: fetchTasks };
 };
 
@@ -61,6 +76,27 @@ export const useProjectTasks = (projectId, filters = {}) => {
   // Mengambil task saat project atau filter berubah.
   useEffect(() => {
     fetchTasks();
+  }, [projectId, filterKey]);
+
+  useEffect(() => {
+    const handleRealtimeTaskEvent = (event) => {
+      const payload = event.detail;
+
+      if (Number(payload?.project_id) !== Number(projectId)) {
+        return;
+      }
+
+      fetchTasks();
+    };
+
+    window.addEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+    window.addEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+
+    return () => {
+      window.removeEventListener('realtime:task.updated', handleRealtimeTaskEvent);
+      window.removeEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, filterKey]);
 
   return { tasks, loading, error, refetch: fetchTasks };

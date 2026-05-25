@@ -50,3 +50,21 @@ export const updateTaskRealization = (id, payload = {}) =>
 export const moveTask = (id, payload) => api.patch(`/tasks/${id}/move`, payload).then(unwrapData);
 // Mengubah parent task.
 export const updateTaskParent = (id, parent_task_id) => api.patch(`/tasks/${id}/parent`, { parent_task_id }).then(unwrapData);
+// Menjalankan bulk update pada beberapa task.
+export const bulkUpdateTasks = (payload) => api.post('/tasks/bulk-update', payload).then(unwrapData);
+// Mengambil label task, opsional terfilter project.
+export const getTaskLabels = (params = {}) => api.get('/task-labels', { params }).then(unwrapData);
+// Membuat label task baru.
+export const createTaskLabel = (payload) => api.post('/task-labels', payload).then(unwrapData);
+// Mengubah label task.
+export const updateTaskLabel = (id, payload) => api.put(`/task-labels/${id}`, payload).then(unwrapData);
+// Menghapus label task.
+export const deleteTaskLabel = (id) => api.delete(`/task-labels/${id}`).then(unwrapData);
+// Mengambil checklist milik task.
+export const getTaskChecklists = (taskId) => api.get(`/tasks/${taskId}/checklists`).then(unwrapData);
+// Membuat checklist baru di task.
+export const createTaskChecklist = (taskId, payload) => api.post(`/tasks/${taskId}/checklists`, payload).then(unwrapData);
+// Mengubah checklist.
+export const updateTaskChecklist = (id, payload) => api.put(`/task-checklists/${id}`, payload).then(unwrapData);
+// Menghapus checklist.
+export const deleteTaskChecklist = (id) => api.delete(`/task-checklists/${id}`).then(unwrapData);
