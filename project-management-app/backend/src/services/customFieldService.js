@@ -519,6 +519,149 @@ const deleteAllCustomFieldValues = async (issueId) => {
 };
 
 /**
+ * Validate that all required custom fields have values for an issue
+ * @param {number} issueId - Issue/Task ID
+ * @param {string} issueTypeName - Issue type name (e.g., 'Task', 'Bug', 'Story')
+ * @param {number|null} projectId - Project ID
+ * @returns {Promise<Object>} Validation result with valid flag and missing fields
+ */
+const validateAllRequiredFields = async (issueId, issueTypeName, projectId = null) => {
+  // Get all applicable required fields for this issue type
+  const applicableFields = await getApplicableCustomFields(projectId, issueTypeName);
+  const requiredFields = applicableFields.filter(f => f.is_required);
+
+  if (requiredFields.length === 0) {
+    return { valid: true, missingFields: [] };
+  }
+
+  // Get current values for this issue
+  const currentValues = await getCustomFieldValues(issueId);
+  const valueMap = new Map(currentValues.map(v => [v.custom_field_id, v.value]));
+
+  const missingFields = [];
+
+  for (const field of requiredFields) {
+    const value = valueMap.get(field.id);
+    if (value === null || value === undefined || value === '') {
+      missingFields.push({
+        id: field.id,
+        name: field.name,
+        field_type: field.field_type,
+      });
+    }
+  }
+
+  return {
+    valid: missingFields.length === 0,
+    missingFields,
+    message: missingFields.length > 0
+      ? `Required fields missing: ${missingFields.map(f => f.name).join(', ')}`
+      : null,
+  };
+};
+
+/**
+ * Apply default values for custom fields that don't have values yet
+ * @param {number} issueId - Issue/Task ID
+ * @param {string} issueTypeName - Issue type name
+ * @param {number|null} projectId - Project ID
+ * @returns {Promise<Array>} Array of applied default values
+ */
+const applyDefaultValues = async (issueId, issueTypeName, projectId = null) => {
+  // Get all applicable fields for this issue type
+  const applicableFields = await getApplicableCustomFields(projectId, issueTypeName);
+
+  // Filter to fields that have a default value
+  const fieldsWithDefaults = applicableFields.filter(f => f.default_value !== null && f.default_value !== '');
+
+  if (fieldsWithDefaults.length === 0) {
+    return [];
+  }
+
+  // Get current values for this issue
+  const currentValues = await getCustomFieldValues(issueId);
+  const existingFieldIds = new Set(currentValues.map(v => v.custom_field_id));
+
+  const appliedDefaults = [];
+
+  for (const field of fieldsWithDefaults) {
+    // Only apply default if no value exists yet
+    if (!existingFieldIds.has(field.id)) {
+      // Parse default value based on field type
+      let defaultValue = field.default_value;
+
+      // Convert default value to appropriate type for validation
+      if (field.field_type === 'number') {
+        defaultValue = Number(defaultValue);
+        if (Number.isNaN(defaultValue)) continue;
+      } else if (field.field_type === 'checkbox') {
+        defaultValue = defaultValue === 'true' || defaultValue === true;
+      } else if (field.field_type === 'multi_select') {
+        try {
+          defaultValue = JSON.parse(defaultValue);
+          if (!Array.isArray(defaultValue)) continue;
+        } catch {
+          continue;
+        }
+      }
+
+      // Validate the default value before applying
+      const validation = await validateCustomFieldValue(field.id, defaultValue);
+      if (validation.valid) {
+        const result = await query(
+          `
+          INSERT INTO custom_field_values (issue_id, custom_field_id, value)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (issue_id, custom_field_id) DO NOTHING
+          RETURNING *
+          `,
+          [issueId, field.id, typeof defaultValue === 'object' ? JSON.stringify(defaultValue) : String(defaultValue)]
+        );
+
+        if (result.rows.length > 0) {
+          appliedDefaults.push({
+            field_id: field.id,
+            field_name: field.name,
+            value: defaultValue,
+          });
+        }
+      }
+    }
+  }
+
+  return appliedDefaults;
+};
+
+/**
+ * Validate that a custom field is applicable to a given issue type
+ * @param {number} fieldId - Custom field ID
+ * @param {string} issueTypeName - Issue type name
+ * @returns {Promise<Object>} Validation result
+ */
+const validateFieldApplicability = async (fieldId, issueTypeName) => {
+  const field = await getCustomFieldById(fieldId);
+
+  if (!field) {
+    return { applicable: false, message: 'Custom field not found.' };
+  }
+
+  // If applicable_issue_types is null or empty, field applies to all types
+  if (!field.applicable_issue_types || field.applicable_issue_types.length === 0) {
+    return { applicable: true };
+  }
+
+  // Check if the issue type is in the applicable list
+  if (field.applicable_issue_types.includes(issueTypeName)) {
+    return { applicable: true };
+  }
+
+  return {
+    applicable: false,
+    message: `Field "${field.name}" is not applicable to issue type "${issueTypeName}". Applicable types: ${field.applicable_issue_types.join(', ')}`,
+  };
+};
+
+/**
  * Get custom fields applicable to an issue type
  * @param {number|null} projectId - Project ID
  * @param {string} issueTypeName - Issue type name
@@ -567,6 +710,7 @@ const getFieldsForIssueType = async (issueTypeName, projectId = null) => {
 };
 
 module.exports = {
+  applyDefaultValues,
   createCustomField,
   deleteAllCustomFieldValues,
   deleteCustomField,
@@ -580,5 +724,7 @@ module.exports = {
   setCustomFieldValue,
   setCustomFieldValues,
   updateCustomField,
+  validateAllRequiredFields,
   validateCustomFieldValue,
+  validateFieldApplicability,
 };

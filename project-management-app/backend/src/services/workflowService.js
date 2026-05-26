@@ -688,6 +688,48 @@ const executeTransitionValidators = async (transition, issue, payload) => {
 };
 
 /**
+ * Map workflow state category to legacy task status for backward compatibility.
+ * Ensures the bucket-based status system stays in sync with workflow transitions.
+ * @param {string} category - Workflow state category (TODO, IN_PROGRESS, DONE)
+ * @returns {string} Legacy status value
+ */
+const mapCategoryToLegacyStatus = (category) => {
+  switch (category) {
+    case 'TODO':
+      return 'Not Started';
+    case 'IN_PROGRESS':
+      return 'In Progress';
+    case 'DONE':
+      return 'Done';
+    default:
+      return 'In Progress';
+  }
+};
+
+// Allowed fields that can be updated via post-functions or transition screens
+const ALLOWED_UPDATE_FIELDS = [
+  'assignee_id', 'lead_id', 'priority', 'resolution', 'environment',
+  'story_points', 'description', 'title', 'start_date', 'end_date',
+];
+
+/**
+ * Safely update a field on an issue, only allowing whitelisted columns.
+ * @param {string} field - Field name to update
+ * @param {*} value - New value
+ * @param {number} issueId - Issue/Task ID
+ * @returns {Promise<void>}
+ */
+const safeUpdateField = async (field, value, issueId) => {
+  if (!ALLOWED_UPDATE_FIELDS.includes(field)) {
+    return; // Skip disallowed fields to prevent SQL injection
+  }
+  await query(
+    `UPDATE tasks SET "${field}" = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+    [value, issueId]
+  );
+};
+
+/**
  * Execute post-transition functions
  * @param {Object} transition - Transition object
  * @param {Object} issue - Issue/Task object
@@ -702,16 +744,13 @@ const executePostFunctions = async (transition, issue, context) => {
   for (const postFunction of transition.post_functions) {
     switch (postFunction.type) {
       case 'update_field':
-        // Update a field on the issue
+        // Update a field on the issue (whitelisted fields only)
         if (postFunction.config.field && postFunction.config.value !== undefined) {
-          await query(
-            `UPDATE tasks SET ${postFunction.config.field} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-            [postFunction.config.value, issue.id]
-          );
+          await safeUpdateField(postFunction.config.field, postFunction.config.value, issue.id);
         }
         break;
 
-      case 'send_notification':
+      case 'send_notification': {
         // Send notification to specified users
         const { createNotificationsForUsers } = require('./notificationService');
         const userIds = postFunction.config.user_ids || [];
@@ -737,6 +776,40 @@ const executePostFunctions = async (transition, issue, context) => {
           });
         }
         break;
+      }
+
+      case 'create_issue': {
+        // Create a new linked issue after transition
+        const config = postFunction.config;
+        if (config.title) {
+          const newIssueResult = await query(
+            `INSERT INTO tasks (title, description, project_id, parent_task_id, status, priority, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, 'Not Started', $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             RETURNING id`,
+            [
+              config.title,
+              config.description || null,
+              issue.project_id,
+              config.link_to_parent ? issue.id : null,
+              config.priority || 'Medium',
+            ]
+          );
+
+          // If issue_links table exists and link_type is specified, create a link
+          if (config.link_type && newIssueResult.rows[0]) {
+            try {
+              await query(
+                `INSERT INTO issue_links (source_issue_id, target_issue_id, link_type, created_at)
+                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
+                [issue.id, newIssueResult.rows[0].id, config.link_type]
+              );
+            } catch (linkError) {
+              // issue_links table may not exist yet; skip silently
+            }
+          }
+        }
+        break;
+      }
 
       case 'assign_user':
         // Assign user to issue
@@ -781,13 +854,15 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     throw new Error('Issue not found.');
   }
 
-  // Get the transition
+  // Get the transition with state categories for backward compatibility
   const transitionResult = await query(
     `
     SELECT 
       t.*,
       fs.name AS from_state_name,
-      ts.name AS to_state_name
+      fs.category AS from_state_category,
+      ts.name AS to_state_name,
+      ts.category AS to_state_category
     FROM workflow_transitions t
     INNER JOIN workflow_states fs ON fs.id = t.from_state_id
     INNER JOIN workflow_states ts ON ts.id = t.to_state_id
@@ -802,7 +877,7 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     throw new Error('Transition not found.');
   }
 
-  // Validate transition is from current state
+  // Validate transition is from current state (Req 2.4)
   if (issue.workflow_state_id !== transition.from_state_id) {
     throw new Error(`Invalid transition: issue is not in "${transition.from_state_name}" state.`);
   }
@@ -819,16 +894,27 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     throw new Error(validationResult.message);
   }
 
-  // Update issue state
+  // Apply transition screen field updates (Req 2.5)
+  // When a transition has a screen_id, the payload.fields contains required field updates
+  if (payload.fields && Object.keys(payload.fields).length > 0) {
+    for (const [field, value] of Object.entries(payload.fields)) {
+      await safeUpdateField(field, value, issueId);
+    }
+  }
+
+  // Map workflow state category to legacy status for backward compatibility (Req 2.8)
+  const legacyStatus = mapCategoryToLegacyStatus(transition.to_state_category);
+
+  // Update issue state and legacy status field together
   await query(
-    'UPDATE tasks SET workflow_state_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-    [transition.to_state_id, issueId]
+    'UPDATE tasks SET workflow_state_id = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+    [transition.to_state_id, legacyStatus, issueId]
   );
 
-  // Execute post-functions
+  // Execute post-functions (Req 2.6)
   await executePostFunctions(transition, issue, context);
 
-  // Log activity
+  // Log activity to activity_logs
   await logActivity({
     actor_user_id: context.actor_user_id || null,
     task_id: issueId,
@@ -839,8 +925,13 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     description: `Transitioned from "${transition.from_state_name}" to "${transition.to_state_name}".`,
     metadata: {
       transition_id: transitionId,
+      transition_name: transition.name,
       from_state: transition.from_state_name,
+      from_state_category: transition.from_state_category,
       to_state: transition.to_state_name,
+      to_state_category: transition.to_state_category,
+      legacy_status: legacyStatus,
+      fields_updated: payload.fields ? Object.keys(payload.fields) : [],
     },
     ip_address: context.ip_address,
     user_agent: context.user_agent,
@@ -898,12 +989,16 @@ module.exports = {
   deleteWorkflow,
   deleteWorkflowState,
   deleteWorkflowTransition,
+  evaluateTransitionConditions,
+  executePostFunctions,
+  executeTransitionValidators,
   getAvailableTransitions,
   getWorkflowById,
   getWorkflowStateById,
   getWorkflowStates,
   getWorkflowTransitions,
   getWorkflows,
+  mapCategoryToLegacyStatus,
   transitionIssue,
   updateWorkflow,
   updateWorkflowState,

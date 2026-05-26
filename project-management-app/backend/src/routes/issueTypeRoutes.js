@@ -4,6 +4,7 @@ const {
   createIssueType,
   deleteIssueType,
   getIssueType,
+  getIssueTypeStats,
   listIssueTypes,
   updateIssueType,
   validateHierarchy,
@@ -15,10 +16,24 @@ const { checkPermission } = require('../middlewares/permissionMiddleware');
 router.use(authenticateRequest);
 
 /**
+ * @route GET /api/issue-types/stats
+ * @desc Get issue type statistics (count of issues per type)
+ * @query {number} projectId - Filter by project ID
+ */
+router.get('/stats', getIssueTypeStats);
+
+/**
+ * @route POST /api/issue-types/validate-hierarchy
+ * @desc Validate parent-child hierarchy
+ * @body {string} parent_type - Parent issue type name
+ * @body {string} child_type - Child issue type name
+ */
+router.post('/validate-hierarchy', validateHierarchy);
+
+/**
  * @route GET /api/issue-types
  * @desc List all issue types (optionally filtered by project)
- * @query {number} project_id - Filter by project ID
- * @query {boolean} include_stats - Include issue counts
+ * @query {number} projectId - Filter by project ID
  */
 router.get('/', listIssueTypes);
 
@@ -27,14 +42,6 @@ router.get('/', listIssueTypes);
  * @desc Get a single issue type by ID
  */
 router.get('/:id', getIssueType);
-
-/**
- * @route GET /api/issue-types/validate-hierarchy
- * @desc Validate parent-child hierarchy
- * @query {string} parent_type - Parent issue type name
- * @query {string} child_type - Child issue type name
- */
-router.get('/validate/hierarchy', validateHierarchy);
 
 /**
  * @route POST /api/issue-types

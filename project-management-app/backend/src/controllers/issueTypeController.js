@@ -17,15 +17,10 @@ const getRequestActivityContext = (req) => ({
 
 /**
  * List all issue types (optionally filtered by project)
+ * GET /api/issue-types?projectId=X
  */
 const listIssueTypes = asyncHandler(async (req, res) => {
-  const projectId = req.query.project_id || null;
-  const includeStats = req.query.include_stats === 'true';
-
-  if (includeStats) {
-    const issueTypes = await getIssueTypeStats(projectId);
-    return sendSuccess(res, issueTypes);
-  }
+  const projectId = req.query.projectId || req.query.project_id || null;
 
   const issueTypes = await getIssueTypes(projectId);
   sendSuccess(res, issueTypes);
@@ -33,6 +28,7 @@ const listIssueTypes = asyncHandler(async (req, res) => {
 
 /**
  * Get a single issue type by ID
+ * GET /api/issue-types/:id
  */
 const getIssueType = asyncHandler(async (req, res) => {
   const issueType = await getIssueTypeById(req.params.id);
@@ -45,7 +41,19 @@ const getIssueType = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Get issue type statistics
+ * GET /api/issue-types/stats?projectId=X
+ */
+const getIssueTypeStatsController = asyncHandler(async (req, res) => {
+  const projectId = req.query.projectId || req.query.project_id || null;
+
+  const stats = await getIssueTypeStats(projectId);
+  sendSuccess(res, stats);
+});
+
+/**
  * Create a new issue type
+ * POST /api/issue-types
  */
 const createIssueTypeController = asyncHandler(async (req, res) => {
   const issueType = await createIssueType(req.body, getRequestActivityContext(req));
@@ -54,6 +62,7 @@ const createIssueTypeController = asyncHandler(async (req, res) => {
 
 /**
  * Update an existing issue type
+ * PUT /api/issue-types/:id
  */
 const updateIssueTypeController = asyncHandler(async (req, res) => {
   const issueType = await updateIssueType(req.params.id, req.body, getRequestActivityContext(req));
@@ -62,6 +71,7 @@ const updateIssueTypeController = asyncHandler(async (req, res) => {
 
 /**
  * Delete an issue type
+ * DELETE /api/issue-types/:id
  */
 const deleteIssueTypeController = asyncHandler(async (req, res) => {
   await deleteIssueType(req.params.id, getRequestActivityContext(req));
@@ -70,9 +80,10 @@ const deleteIssueTypeController = asyncHandler(async (req, res) => {
 
 /**
  * Validate parent-child hierarchy
+ * POST /api/issue-types/validate-hierarchy
  */
 const validateHierarchyController = asyncHandler(async (req, res) => {
-  const { parent_type, child_type } = req.query;
+  const { parent_type, child_type } = req.body;
 
   if (!parent_type || !child_type) {
     return sendError(res, 'Both parent_type and child_type are required.', 'Validation failed.', 400);
@@ -86,6 +97,7 @@ module.exports = {
   createIssueType: createIssueTypeController,
   deleteIssueType: deleteIssueTypeController,
   getIssueType,
+  getIssueTypeStats: getIssueTypeStatsController,
   listIssueTypes,
   updateIssueType: updateIssueTypeController,
   validateHierarchy: validateHierarchyController,

@@ -1,4 +1,5 @@
 const {
+  applyDefaultValues,
   createCustomField,
   deleteCustomField,
   deleteCustomFieldValue,
@@ -9,7 +10,9 @@ const {
   setCustomFieldValue,
   setCustomFieldValues,
   updateCustomField,
+  validateAllRequiredFields,
   validateCustomFieldValue,
+  validateFieldApplicability,
 } = require('../services/customFieldService');
 const { asyncHandler, sendError, sendSuccess } = require('../utils/responseUtils');
 
@@ -23,7 +26,7 @@ const getRequestActivityContext = (req) => ({
  * List all custom fields
  */
 const listCustomFields = asyncHandler(async (req, res) => {
-  const projectId = req.query.project_id || null;
+  const projectId = req.query.projectId || req.query.project_id || null;
   const customFields = await getCustomFields(projectId);
   sendSuccess(res, customFields);
 });
@@ -77,13 +80,14 @@ const validateValue = asyncHandler(async (req, res) => {
  * Get custom fields applicable to an issue type
  */
 const listApplicable = asyncHandler(async (req, res) => {
-  const { project_id, issue_type_name } = req.query;
+  const projectId = req.query.projectId || req.query.project_id || null;
+  const issueType = req.query.issueType || req.query.issue_type_name || null;
 
-  if (!issue_type_name) {
-    return sendError(res, 'issue_type_name is required.', 'Validation failed.', 400);
+  if (!issueType) {
+    return sendError(res, 'issueType is required.', 'Validation failed.', 400);
   }
 
-  const customFields = await getApplicableCustomFields(project_id || null, issue_type_name);
+  const customFields = await getApplicableCustomFields(projectId, issueType);
   sendSuccess(res, customFields);
 });
 
@@ -128,7 +132,62 @@ const deleteIssueValue = asyncHandler(async (req, res) => {
   sendSuccess(res, null, 'Custom field value deleted successfully.');
 });
 
+/**
+ * Validate all required custom fields for an issue
+ */
+const validateRequiredFields = asyncHandler(async (req, res) => {
+  const { issueId } = req.params;
+  const { issue_type_name, project_id } = req.query;
+
+  if (!issue_type_name) {
+    return sendError(res, 'issue_type_name is required.', 'Validation failed.', 400);
+  }
+
+  const result = await validateAllRequiredFields(
+    Number(issueId),
+    issue_type_name,
+    project_id ? Number(project_id) : null
+  );
+  sendSuccess(res, result);
+});
+
+/**
+ * Apply default values for custom fields on an issue
+ */
+const applyDefaults = asyncHandler(async (req, res) => {
+  const { issueId } = req.params;
+  const { issue_type_name, project_id } = req.body;
+
+  if (!issue_type_name) {
+    return sendError(res, 'issue_type_name is required.', 'Validation failed.', 400);
+  }
+
+  const appliedDefaults = await applyDefaultValues(
+    Number(issueId),
+    issue_type_name,
+    project_id ? Number(project_id) : null
+  );
+  sendSuccess(res, appliedDefaults, 'Default values applied successfully.');
+});
+
+/**
+ * Check if a custom field is applicable to an issue type
+ */
+const checkFieldApplicability = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { issue_type_name } = req.query;
+
+  if (!issue_type_name) {
+    return sendError(res, 'issue_type_name is required.', 'Validation failed.', 400);
+  }
+
+  const result = await validateFieldApplicability(Number(id), issue_type_name);
+  sendSuccess(res, result);
+});
+
 module.exports = {
+  applyDefaults,
+  checkFieldApplicability,
   createCustomField: createCustomFieldController,
   deleteCustomField: deleteCustomFieldController,
   deleteIssueValue,
@@ -139,5 +198,6 @@ module.exports = {
   setIssueValue,
   setIssueValues,
   updateCustomField: updateCustomFieldController,
+  validateRequiredFields,
   validateValue,
 };
