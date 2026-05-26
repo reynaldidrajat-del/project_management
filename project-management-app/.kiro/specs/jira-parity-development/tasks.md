@@ -143,7 +143,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
     - Verify all keys match pattern `{PROJECT_KEY}-{NUMBER}`
     - **Validates: Requirements 1.6**
 
-- [~] 6. Checkpoint - Phase 1 Foundation Complete
+- [x] 6. Checkpoint - Phase 1 Foundation Complete
   - Ensure all database migrations run successfully
   - Verify all backend services pass unit tests
   - Test API endpoints return correct responses
@@ -152,7 +152,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
 ### Phase 2: Agile Features — Sprints, Epics, Story Points
 
 - [ ] 7. Implement Sprint Management backend
-  - [~] 7.1 Create sprint service
+  - [x] 7.1 Create sprint service
     - Create `backend/src/services/sprintService.js`
     - Implement sprint CRUD operations (create, update, delete)
     - Implement sprint state transitions (FUTURE → ACTIVE → CLOSED)
@@ -192,7 +192,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
     - _Requirements: 3.1, 3.8_
 
 - [ ] 8. Implement Epic Management backend
-  - [~] 8.1 Create epic service
+  - [x] 8.1 Create epic service
     - Create `backend/src/services/epicService.js`
     - Implement epic CRUD operations
     - Implement epic progress calculation (story points-based or count-based fallback)
@@ -225,7 +225,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
     - _Requirements: 5.1, 5.3_
 
 - [ ] 9. Implement Story Points and Estimation
-  - [~] 9.1 Extend task model with story points
+  - [x] 9.1 Extend task model with story points
     - Add story_points column validation (non-negative number)
     - Support Fibonacci sequence suggestions (1, 2, 3, 5, 8, 13, 21)
     - Calculate totals for sprints, epics, and backlogs
@@ -238,7 +238,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
     - _Requirements: 6.5, 6.6, 6.7_
 
 - [ ] 10. Implement Backlog Management backend
-  - [~] 10.1 Create backlog service
+  - [x] 10.1 Create backlog service
     - Create `backend/src/services/backlogService.js`
     - Implement backlog query (issues not assigned to any sprint)
     - Implement drag-and-drop reordering with priority rank field
@@ -258,7 +258,7 @@ This implementation plan transforms the existing Microsoft Planner-style project
     - _Requirements: 4.1, 4.2_
 
 - [ ] 11. Implement Version and Release Management backend
-  - [~] 11.1 Create version/release service
+  - [x] 11.1 Create version/release service
     - Create `backend/src/services/versionService.js`
     - Implement version CRUD with status (unreleased, released, archived)
     - Support fix_version and affects_version on issues
