@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Git Commit After Task",
+  "description": "Automatically creates a git commit when a spec task is completed and generates daily activity log files",
+  "version": "1",
+  "when": {
+    "type": "postTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Task baru saja selesai dikerjakan. Lakukan hal berikut:\n1. Buat git commit dengan pesan yang menjelaskan perubahan yang dilakukan pada task ini\n2. Buat atau update file activity log di folder /activity dengan format nama file: activity-YYYY-MM-DD.md (sesuai tanggal hari ini)\n3. Di dalam file activity log, catat: tanggal, waktu, task yang diselesaikan, dan ringkasan perubahan\n\nPastikan commit message informatif dan activity log terstruktur dengan baik."
+  }
+}

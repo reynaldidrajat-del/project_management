@@ -8,9 +8,11 @@ const authRoutes = require('./routes/authRoutes');
 const bucketRoutes = require('./routes/bucketRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const customFieldRoutes = require('./routes/customFieldRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const ganttRoutes = require('./routes/ganttRoutes');
+const issueTypeRoutes = require('./routes/issueTypeRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const performanceRoutes = require('./routes/performanceRoutes');
@@ -20,6 +22,7 @@ const taskCommentRoutes = require('./routes/taskCommentRoutes');
 const taskLabelRoutes = require('./routes/taskLabelRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const userRoutes = require('./routes/userRoutes');
+const workflowRoutes = require('./routes/workflowRoutes');
 const { verifyApplicationSchema, verifyDatabaseConnection } = require('./config/db');
 const { authenticateRequest } = require('./middlewares/authMiddleware');
 const { initializeRealtimeServer } = require('./services/realtimeService');
@@ -93,7 +96,9 @@ app.get('/', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', authenticateRequest);
 app.use('/api/activities', activityRoutes);
+app.use('/api/custom-fields', customFieldRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/issue-types', issueTypeRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/performance', performanceRoutes);
@@ -108,6 +113,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/gantt', ganttRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/workflows', workflowRoutes);
 
 // Menangani URL API yang tidak dikenal.
 app.use((_req, res) => {

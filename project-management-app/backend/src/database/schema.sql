@@ -122,6 +122,19 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority VARCHAR(30) DEFAULT 'Medium',
   sort_order INTEGER DEFAULT 0,
   creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- Jira parity columns for issue management
+  issue_type_id INTEGER,
+  issue_key VARCHAR(50),
+  story_points INTEGER,
+  epic_id INTEGER,
+  sprint_id INTEGER,
+  workflow_state_id INTEGER,
+  resolution VARCHAR(100),
+  environment TEXT,
+  affects_versions TEXT[],
+  fix_versions TEXT[],
+  components TEXT[],
+  -- End Jira parity columns
   archived_at TIMESTAMP NULL,
   archived_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   deleted_at TIMESTAMP NULL,
@@ -137,7 +150,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   CONSTRAINT tasks_priority_allowed CHECK (priority IN ('Low', 'Medium', 'High', 'Urgent')),
   CONSTRAINT tasks_parent_not_self CHECK (parent_task_id IS NULL OR parent_task_id <> id),
   CONSTRAINT tasks_actual_dates_order CHECK (actual_start_date IS NULL OR actual_end_date IS NULL OR actual_start_date <= actual_end_date),
-  CONSTRAINT tasks_realization_mode_allowed CHECK (realization_mode IS NULL OR realization_mode IN ('normal', 'manual'))
+  CONSTRAINT tasks_realization_mode_allowed CHECK (realization_mode IS NULL OR realization_mode IN ('normal', 'manual')),
+  CONSTRAINT tasks_story_points_non_negative CHECK (story_points IS NULL OR story_points >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS task_assignees (
@@ -346,6 +360,13 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_dates ON tasks(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_actual_dates ON tasks(actual_start_date, actual_end_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_archived_at ON tasks(archived_at);
+-- Jira parity indexes for issue management
+CREATE INDEX IF NOT EXISTS idx_tasks_issue_type_id ON tasks(issue_type_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_issue_key ON tasks(issue_key) WHERE issue_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tasks_epic_id ON tasks(epic_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_sprint_id ON tasks(sprint_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_workflow_state_id ON tasks(workflow_state_id);
+-- End Jira parity indexes
 CREATE INDEX IF NOT EXISTS idx_task_assignees_task_id ON task_assignees(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_assignees_user_id ON task_assignees(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
