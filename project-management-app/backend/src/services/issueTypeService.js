@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { emitToProjectOrWorkspace } = require('./realtimeService');
 
 // Issue type hierarchy levels
 const HIERARCHY_LEVELS = {
@@ -18,6 +19,22 @@ const DEFAULT_ISSUE_TYPES = [
   { name: 'Bug', icon: 'bug', color: '#E5493A', hierarchy_level: 2, allowed_parent_types: ['Epic', 'Story'], allowed_child_types: ['Subtask'] },
   { name: 'Subtask', icon: 'subtask', color: '#4FADE6', hierarchy_level: 3, allowed_parent_types: ['Task', 'Bug', 'Story'], allowed_child_types: [] },
 ];
+
+const getActorUserId = (context = {}) => context.actor_user_id || context.user_id || null;
+
+const emitIssueTypeRealtimeEvent = (eventName, issueType, context = {}, metadata = {}) => {
+  const payload = {
+    actor_user_id: getActorUserId(context),
+    event: eventName,
+    issue_type: issueType || null,
+    issue_type_id: issueType?.id ? Number(issueType.id) : metadata.issue_type_id || null,
+    metadata,
+    project_id: issueType?.project_id ? Number(issueType.project_id) : null,
+  };
+
+  emitToProjectOrWorkspace(issueType?.project_id || null, eventName, payload);
+  emitToProjectOrWorkspace(issueType?.project_id || null, 'issue_type.changed', payload);
+};
 
 /**
  * Get all issue types for a project (including global/system types)
@@ -177,6 +194,10 @@ const createIssueType = async (data, context = {}) => {
     user_agent: context.user_agent,
   });
 
+  emitIssueTypeRealtimeEvent('issue_type.created', issueType, context, {
+    action: 'issue_type.create',
+  });
+
   return issueType;
 };
 
@@ -256,6 +277,11 @@ const updateIssueType = async (id, data, context = {}) => {
     user_agent: context.user_agent,
   });
 
+  emitIssueTypeRealtimeEvent('issue_type.updated', issueType, context, {
+    action: 'issue_type.update',
+    changed_fields: Object.keys(data || {}),
+  });
+
   return issueType;
 };
 
@@ -297,6 +323,11 @@ const deleteIssueType = async (id, context = {}) => {
     metadata: { name: issueType.name },
     ip_address: context.ip_address,
     user_agent: context.user_agent,
+  });
+
+  emitIssueTypeRealtimeEvent('issue_type.deleted', issueType, context, {
+    action: 'issue_type.delete',
+    issue_type_id: Number(id),
   });
 };
 

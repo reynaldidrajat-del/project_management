@@ -3,13 +3,23 @@ import { createPortal } from 'react-dom';
 
 import { formatDate } from '../../logic/helpers/dateHelper';
 import { getPriorityBadgeClass, getProgressBarClass, getStatusBadgeClass } from '../../logic/helpers/statusHelper';
+import { getTaskDisplayKey } from '../../logic/helpers/taskDisplayHelper';
 import { getTaskAssigneeNames, getTaskLeadName } from '../../logic/helpers/taskPeopleHelper';
 import { useUiStore } from '../../store/uiStore';
+import IssueTypeBadge from './IssueTypeBadge';
+
+const SUBTASK_PARENT_ISSUE_TYPES = ['Story', 'Task', 'Bug'];
+
+const canTaskHaveSubtask = (task) => SUBTASK_PARENT_ISSUE_TYPES.includes(task?.issue_type_name);
 
 // Menu aksi per task untuk edit, hapus, tambah subtask, dan realisasi.
 function SplitTaskActions({
   approvalEnabled,
   approvalPending,
+  canCreateTask,
+  canDeleteTask,
+  canRealizeTask,
+  canUpdateTask,
   task,
   realizationAction,
   realizationLabel,
@@ -29,6 +39,9 @@ function SplitTaskActions({
   const manualRealizationDisabledReason = task.children?.length
     ? 'Parent task memakai rollup dari subtask.'
     : 'Task yang sudah Done tidak dapat diubah lewat realisasi manual.';
+  const canAddSubtask = canCreateTask && canTaskHaveSubtask(task);
+  const hasMenuActions = canRealizeTask || canAddSubtask || canUpdateTask || canDeleteTask;
+  const doneLabel = rawStatus === 'Done' ? 'Done' : 'View only';
 
   // Menghitung posisi menu agar dropdown muncul dekat tombolnya.
   const updateMenuPosition = () => {
@@ -118,47 +131,57 @@ function SplitTaskActions({
             {realizationLabel}
           </button>
         ) : (
-          <span className="inline-flex h-8 min-w-20 items-center justify-center bg-green-100 px-3 text-xs font-bold text-green-700">Done</span>
+          <span className="inline-flex h-8 min-w-20 items-center justify-center bg-green-100 px-3 text-xs font-bold text-green-700">{doneLabel}</span>
         )}
-        <button
-          aria-expanded={open}
-          aria-label={`Pilihan lain untuk ${task.title}`}
-          className="inline-flex h-8 w-9 items-center justify-center border-l border-white/40 bg-primary text-xs font-bold text-white transition hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary/25"
-          type="button"
-          onClick={handleOpenMenu}
-        >
-          v
-        </button>
+        {hasMenuActions ? (
+          <button
+            aria-expanded={open}
+            aria-label={`Pilihan lain untuk ${task.title}`}
+            className="inline-flex h-8 w-9 items-center justify-center border-l border-white/40 bg-primary text-xs font-bold text-white transition hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary/25"
+            type="button"
+            onClick={handleOpenMenu}
+          >
+            v
+          </button>
+        ) : null}
       </div>
 
-      {open
+      {open && hasMenuActions
         ? createPortal(
             <div
               ref={menuRef}
               className="fixed z-[9999] w-44 overflow-hidden rounded-lg border border-border bg-white py-1 text-xs shadow-[0_18px_45px_rgba(15,23,42,0.22)]"
               style={{ left: menuPosition.left, top: menuPosition.top }}
             >
-              <button
-                className={[
-                  'block w-full px-3 py-2 text-left font-semibold',
-                  manualRealizationDisabled ? 'cursor-not-allowed text-slate-400' : 'text-text-dark hover:bg-slate-50',
-                ].join(' ')}
-                disabled={manualRealizationDisabled}
-                title={manualRealizationDisabled ? manualRealizationDisabledReason : 'Isi realisasi manual'}
-                type="button"
-                onClick={() => runAction(() => onManualRealization?.(task))}
-              >
-                Manual realization
-              </button>
-              <button className="block w-full px-3 py-2 text-left font-semibold text-text-dark hover:bg-slate-50" type="button" onClick={() => runAction(() => onAddSubtask(task))}>
-                Add subtask
-              </button>
-              <button className="block w-full px-3 py-2 text-left font-semibold text-text-dark hover:bg-slate-50" type="button" onClick={() => runAction(() => onEdit(task))}>
-                Edit task
-              </button>
-              <button className="block w-full px-3 py-2 text-left font-semibold text-danger hover:bg-red-50" type="button" onClick={() => runAction(() => onDelete(task))}>
-                Delete task
-              </button>
+              {canRealizeTask ? (
+                <button
+                  className={[
+                    'block w-full px-3 py-2 text-left font-semibold',
+                    manualRealizationDisabled ? 'cursor-not-allowed text-slate-400' : 'text-text-dark hover:bg-slate-50',
+                  ].join(' ')}
+                  disabled={manualRealizationDisabled}
+                  title={manualRealizationDisabled ? manualRealizationDisabledReason : 'Isi realisasi manual'}
+                  type="button"
+                  onClick={() => runAction(() => onManualRealization?.(task))}
+                >
+                  Manual realization
+                </button>
+              ) : null}
+              {canAddSubtask ? (
+                <button className="block w-full px-3 py-2 text-left font-semibold text-text-dark hover:bg-slate-50" type="button" onClick={() => runAction(() => onAddSubtask?.(task))}>
+                  Add subtask
+                </button>
+              ) : null}
+              {canUpdateTask ? (
+                <button className="block w-full px-3 py-2 text-left font-semibold text-text-dark hover:bg-slate-50" type="button" onClick={() => runAction(() => onEdit?.(task))}>
+                  Edit task
+                </button>
+              ) : null}
+              {canDeleteTask ? (
+                <button className="block w-full px-3 py-2 text-left font-semibold text-danger hover:bg-red-50" type="button" onClick={() => runAction(() => onDelete?.(task))}>
+                  Delete task
+                </button>
+              ) : null}
             </div>,
             document.body,
           )
@@ -170,6 +193,11 @@ function SplitTaskActions({
 // Satu baris task dalam tree list.
 function TaskRow({
   task,
+  canApproveTask,
+  canCreateTask,
+  canDeleteTask,
+  canRealizeTask,
+  canUpdateTask,
   currentUserId,
   currentUserRole,
   expanded,
@@ -189,11 +217,13 @@ function TaskRow({
   const rawStatus = task.raw_status || task.status;
   const approvalPending = rawStatus === 'Waiting Review';
   const approvalEnabled =
-    approvalPending && (currentUserRole === 'super_admin' || (task.lead_id && Number(task.lead_id) === Number(currentUserId)));
+    canApproveTask && approvalPending && (currentUserRole === 'super_admin' || (task.lead_id && Number(task.lead_id) === Number(currentUserId)));
   const realizationAction = approvalPending ? null : !hasActualStarted ? 'start' : hasActualStarted && !hasActualFinished ? 'finish' : null;
+  const permittedRealizationAction = canRealizeTask ? realizationAction : null;
   const realizationLabel = realizationAction === 'start' ? 'Mulai' : realizationAction === 'finish' ? 'Selesai' : 'Done';
   const selected = selectedTaskIds?.has(Number(task.id));
   const selectable = Boolean(onSelectionChange);
+  const taskDisplayKey = getTaskDisplayKey(task);
 
   return (
     <>
@@ -217,6 +247,14 @@ function TaskRow({
               {hasChildren ? (expanded.has(task.id) ? '-' : '+') : ''}
             </button>
             <div className="min-w-0">
+              <div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                <IssueTypeBadge
+                  color={task.issue_type_color}
+                  icon={task.issue_type_icon}
+                  name={task.issue_type_name}
+                />
+                {taskDisplayKey ? <span className="truncate text-[11px] font-bold text-text-muted">{taskDisplayKey}</span> : null}
+              </div>
               <p className={`truncate ${hasChildren ? 'font-bold text-text-dark' : 'font-semibold text-text-dark'}`}>{task.title}</p>
               <p className="mt-0.5 truncate text-[11px] text-text-muted">
                 {task.project_name || '-'} / {task.bucket_name || '-'}
@@ -249,8 +287,12 @@ function TaskRow({
             <SplitTaskActions
               approvalEnabled={approvalEnabled}
               approvalPending={approvalPending}
+              canCreateTask={canCreateTask}
+              canDeleteTask={canDeleteTask}
+              canRealizeTask={canRealizeTask}
+              canUpdateTask={canUpdateTask}
               task={task}
-              realizationAction={realizationAction}
+              realizationAction={permittedRealizationAction}
               realizationLabel={realizationLabel}
               onAddSubtask={onAddSubtask}
               onApprove={onApprove}
@@ -267,6 +309,11 @@ function TaskRow({
             <TaskRow
               key={child.id}
               task={child}
+              canApproveTask={canApproveTask}
+              canCreateTask={canCreateTask}
+              canDeleteTask={canDeleteTask}
+              canRealizeTask={canRealizeTask}
+              canUpdateTask={canUpdateTask}
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               expanded={expanded}
@@ -288,6 +335,11 @@ function TaskRow({
 
 // Tabel task bertingkat yang bisa expand/collapse.
 function TaskTree({
+  canApproveTask = true,
+  canCreateTask = true,
+  canDeleteTask = true,
+  canRealizeTask = true,
+  canUpdateTask = true,
   tasks = [],
   selectedTaskIds,
   onSelectionChange,
@@ -342,6 +394,11 @@ function TaskTree({
               <TaskRow
                 key={task.id}
                 task={task}
+                canApproveTask={canApproveTask}
+                canCreateTask={canCreateTask}
+                canDeleteTask={canDeleteTask}
+                canRealizeTask={canRealizeTask}
+                canUpdateTask={canUpdateTask}
                 currentUserId={currentUserId}
                 currentUserRole={currentUserRole}
                 expanded={expanded}

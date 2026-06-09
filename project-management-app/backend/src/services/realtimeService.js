@@ -125,6 +125,7 @@ const joinDefaultRooms = async (socket) => {
     return;
   }
 
+  socket.join('workspace');
   socket.join(`user:${userId}`);
 
   if (user.department_id) {
@@ -254,6 +255,17 @@ const emitToProject = (projectId, eventName, payload) => {
   }
 };
 
+const emitToProjectOrWorkspace = (projectId, eventName, payload) => {
+  const normalizedProjectId = normalizePositiveInteger(projectId);
+
+  if (normalizedProjectId) {
+    emitToProject(normalizedProjectId, eventName, payload);
+    return;
+  }
+
+  emitToRoom('workspace', eventName, payload);
+};
+
 const emitToTask = (taskId, eventName, payload) => {
   const normalizedTaskId = normalizePositiveInteger(taskId);
 
@@ -273,6 +285,7 @@ const emitToChatRoom = (roomId, eventName, payload) => {
 module.exports = {
   emitToChatRoom,
   emitToProject,
+  emitToProjectOrWorkspace,
   emitToTask,
   emitToUser,
   emitToUsers,

@@ -16,7 +16,7 @@ const listTaskLabels = asyncHandler(async (req, res) => {
   const labels = await getTaskLabels({
     ...req.query,
     project_id: req.params.projectId || req.query.project_id,
-  });
+  }, { user: req.user });
   sendSuccess(res, labels);
 });
 

@@ -13,6 +13,24 @@ ensureBacklogOrderColumn().catch(() => {
   // Silently ignore if column already exists or DB not ready yet
 });
 
+const normalizeIssueIds = (issueIds) => {
+  if (!Array.isArray(issueIds)) {
+    throw new Error('Issue IDs must be provided as an array.');
+  }
+
+  const normalizedIds = issueIds
+    .map((issueId) => Number(issueId))
+    .filter((issueId) => Number.isInteger(issueId) && issueId > 0);
+
+  const uniqueIds = [...new Set(normalizedIds)];
+
+  if (uniqueIds.length === 0) {
+    throw new Error('No valid issue IDs were provided.');
+  }
+
+  return uniqueIds;
+};
+
 /**
  * Get backlog issues for a project (issues not assigned to any sprint).
  * Supports optional filtering by issue type, assignee, epic, priority, and text search.
@@ -209,9 +227,7 @@ const reorderBacklog = async (projectId, issueId, newPosition) => {
  * @returns {Promise<Object>} Result with count of moved issues
  */
 const moveToSprint = async (issueIds, sprintId) => {
-  if (!issueIds || issueIds.length === 0) {
-    throw new Error('No issues specified to move.');
-  }
+  const normalizedIssueIds = normalizeIssueIds(issueIds);
 
   if (!sprintId) {
     throw new Error('Sprint ID is required.');
@@ -229,6 +245,10 @@ const moveToSprint = async (issueIds, sprintId) => {
 
   const sprint = sprintResult.rows[0];
 
+  if (sprint.state === 'CLOSED') {
+    throw new Error('Cannot move issues to a closed sprint.');
+  }
+
   // Update issues: set sprint_id and clear backlog_order
   const result = await query(
     `
@@ -236,12 +256,12 @@ const moveToSprint = async (issueIds, sprintId) => {
     SET sprint_id = $1,
         backlog_order = NULL,
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = ANY($2)
+    WHERE id = ANY($2::INTEGER[])
       AND project_id = $3
       AND sprint_id IS NULL
     RETURNING id
     `,
-    [sprintId, issueIds, sprint.project_id]
+    [sprintId, normalizedIssueIds, sprint.project_id]
   );
 
   return {
@@ -259,14 +279,12 @@ const moveToSprint = async (issueIds, sprintId) => {
  * @returns {Promise<Object>} Result with count of moved issues
  */
 const moveToBacklog = async (issueIds) => {
-  if (!issueIds || issueIds.length === 0) {
-    throw new Error('No issues specified to move.');
-  }
+  const normalizedIssueIds = normalizeIssueIds(issueIds);
 
   // Get the project_id from the first issue to determine max backlog_order
   const issueCheck = await query(
-    `SELECT id, project_id FROM tasks WHERE id = ANY($1) AND sprint_id IS NOT NULL`,
-    [issueIds]
+    `SELECT id, project_id FROM tasks WHERE id = ANY($1::INTEGER[]) AND sprint_id IS NOT NULL`,
+    [normalizedIssueIds]
   );
 
   if (issueCheck.rows.length === 0) {
@@ -285,7 +303,7 @@ const moveToBacklog = async (issueIds) => {
 
   // Move each issue to backlog with incrementing order
   const movedIds = [];
-  for (const issueId of issueIds) {
+  for (const issueId of normalizedIssueIds) {
     const result = await query(
       `
       UPDATE tasks

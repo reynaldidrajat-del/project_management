@@ -1,9 +1,16 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { triggerAutomation } = require('./automationService');
 const { calculateTaskDateMetrics } = require('./calendarService');
+const { getComponentIdsFromPayload, replaceIssueComponents } = require('./componentService');
+const { emitDashboardMetricsUpdated } = require('./dashboardMetricsService');
+const { deriveProjectKey, generateIssueKey } = require('./issueKeyService');
 const { createNotificationsForUsers } = require('./notificationService');
+const { ensurePriorityAllowed } = require('./prioritySchemeService');
+const { appendProjectVisibilityCondition } = require('./projectAccessService');
 const { updateProjectProgress, upsertProjectMember } = require('./projectService');
 const { emitToProject, emitToTask } = require('./realtimeService');
+const { addIssueWatchers, notifyIssueWatchers } = require('./watcherService');
 const { formatDateKey } = require('../utils/dateUtils');
 
 const VALID_STATUSES = ['Not Started', 'In Progress', 'Waiting Review', 'Done', 'Overdue'];
@@ -11,6 +18,20 @@ const VALID_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 const REVIEW_PROGRESS = 99;
 const APPROVED_PROGRESS = 100;
 const MANUAL_REALIZATION_REASON_MIN_LENGTH = 10;
+const DEFAULT_ROOT_ISSUE_TYPE_NAME = 'Task';
+const DEFAULT_CHILD_ISSUE_TYPE_NAME = 'Subtask';
+const DEFAULT_ROOT_ISSUE_TYPE = {
+  color: '#4C9AFF',
+  icon: 'task',
+  hierarchyLevel: 2,
+  name: DEFAULT_ROOT_ISSUE_TYPE_NAME,
+};
+const DEFAULT_CHILD_ISSUE_TYPE = {
+  color: '#6B778C',
+  icon: 'subtask',
+  hierarchyLevel: 3,
+  name: DEFAULT_CHILD_ISSUE_TYPE_NAME,
+};
 
 // Query dasar untuk mengambil task lengkap dengan project, bucket, PIC, lead, dan status tampilannya.
 const TASK_SELECT = `
@@ -18,6 +39,7 @@ const TASK_SELECT = `
     t.id,
     t.project_id,
     p.name AS project_name,
+    p.project_key,
     to_char(p.start_date, 'YYYY-MM-DD') AS project_start_date,
     to_char(p.end_date, 'YYYY-MM-DD') AS project_end_date,
     COALESCE(assignee_summary.primary_department_id, legacy_assignee.department_id) AS department_id,
@@ -31,6 +53,50 @@ const TASK_SELECT = `
     t.bucket_id,
     b.name AS bucket_name,
     t.parent_task_id,
+    t.issue_key,
+    t.issue_type_id,
+    COALESCE(
+      issue_type.name,
+      CASE
+        WHEN t.parent_task_id IS NOT NULL AND NOT child_summary.has_children THEN '${DEFAULT_CHILD_ISSUE_TYPE.name}'
+        ELSE '${DEFAULT_ROOT_ISSUE_TYPE.name}'
+      END
+    ) AS issue_type_name,
+    COALESCE(
+      issue_type.icon,
+      CASE
+        WHEN t.parent_task_id IS NOT NULL AND NOT child_summary.has_children THEN '${DEFAULT_CHILD_ISSUE_TYPE.icon}'
+        ELSE '${DEFAULT_ROOT_ISSUE_TYPE.icon}'
+      END
+    ) AS issue_type_icon,
+    COALESCE(
+      issue_type.color,
+      CASE
+        WHEN t.parent_task_id IS NOT NULL AND NOT child_summary.has_children THEN '${DEFAULT_CHILD_ISSUE_TYPE.color}'
+        ELSE '${DEFAULT_ROOT_ISSUE_TYPE.color}'
+      END
+    ) AS issue_type_color,
+    COALESCE(
+      issue_type.hierarchy_level,
+      CASE
+        WHEN t.parent_task_id IS NOT NULL AND NOT child_summary.has_children THEN ${DEFAULT_CHILD_ISSUE_TYPE.hierarchyLevel}
+        ELSE ${DEFAULT_ROOT_ISSUE_TYPE.hierarchyLevel}
+      END
+    ) AS issue_type_hierarchy_level,
+    t.story_points,
+    t.epic_id,
+    epic.epic_name,
+    epic.epic_color,
+    t.sprint_id,
+    sprint.name AS sprint_name,
+    sprint.state AS sprint_state,
+    t.workflow_state_id,
+    workflow_state.name AS workflow_state_name,
+    workflow_state.category AS workflow_state_category,
+    workflow_state.color AS workflow_state_color,
+    t.resolution,
+    t.environment,
+    t.backlog_order,
     t.title,
     t.description,
     COALESCE(assignee_summary.primary_assignee_id, t.assignee_id) AS assignee_id,
@@ -90,8 +156,16 @@ const TASK_SELECT = `
     t.completed_at,
     t.approved_at,
     t.approved_by,
+    COALESCE(t.original_estimate_minutes, 0)::INTEGER AS original_estimate_minutes,
+    ROUND(COALESCE(t.original_estimate_minutes, 0)::NUMERIC / 60, 2)::FLOAT AS original_estimate_hours,
+    COALESCE(t.remaining_estimate_minutes, 0)::INTEGER AS remaining_estimate_minutes,
+    ROUND(COALESCE(t.remaining_estimate_minutes, 0)::NUMERIC / 60, 2)::FLOAT AS remaining_estimate_hours,
+    COALESCE(time_log_summary.time_spent_minutes, 0)::INTEGER AS time_spent_minutes,
+    COALESCE(time_log_summary.time_spent_hours, 0)::FLOAT AS time_spent_hours,
     COALESCE(label_summary.label_ids, '[]'::JSON) AS label_ids,
     COALESCE(label_summary.labels, '[]'::JSON) AS labels,
+    COALESCE(component_summary.component_ids, '[]'::JSON) AS component_ids,
+    COALESCE(component_summary.components, '[]'::JSON) AS components,
     COALESCE(checklist_summary.total_checklists, 0)::INTEGER AS checklist_total,
     COALESCE(checklist_summary.completed_checklists, 0)::INTEGER AS checklist_completed,
     t.created_at,
@@ -99,12 +173,31 @@ const TASK_SELECT = `
   FROM tasks t
   LEFT JOIN projects p ON p.id = t.project_id
   LEFT JOIN buckets b ON b.id = t.bucket_id
+  LEFT JOIN issue_types issue_type ON issue_type.id = t.issue_type_id
+  LEFT JOIN epics epic ON epic.id = t.epic_id
+  LEFT JOIN sprints sprint ON sprint.id = t.sprint_id
+  LEFT JOIN workflow_states workflow_state ON workflow_state.id = t.workflow_state_id
+  LEFT JOIN LATERAL (
+    SELECT EXISTS (
+      SELECT 1
+      FROM tasks child_task
+      WHERE child_task.parent_task_id = t.id
+        AND child_task.archived_at IS NULL
+    ) AS has_children
+  ) child_summary ON TRUE
   LEFT JOIN users legacy_assignee ON legacy_assignee.id = t.assignee_id
   LEFT JOIN departments legacy_assignee_department ON legacy_assignee_department.id = legacy_assignee.department_id
   LEFT JOIN locations legacy_assignee_location ON legacy_assignee_location.id = legacy_assignee.location_id
   LEFT JOIN users lead_user ON lead_user.id = t.lead_id
   LEFT JOIN departments lead_department ON lead_department.id = lead_user.department_id
   LEFT JOIN locations lead_location ON lead_location.id = lead_user.location_id
+  LEFT JOIN LATERAL (
+    SELECT
+      COALESCE(SUM(tl.time_spent_minutes), 0)::INTEGER AS time_spent_minutes,
+      ROUND(COALESCE(SUM(tl.time_spent_minutes), 0)::NUMERIC / 60, 2)::FLOAT AS time_spent_hours
+    FROM time_logs tl
+    WHERE tl.issue_id = t.id
+  ) time_log_summary ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       (array_agg(ta.user_id ORDER BY ta.id))[1] AS primary_assignee_id,
@@ -149,6 +242,25 @@ const TASK_SELECT = `
     INNER JOIN task_labels tl ON tl.id = tla.label_id
     WHERE tla.task_id = t.id
   ) label_summary ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT
+      json_agg(c.id ORDER BY c.name) FILTER (WHERE c.id IS NOT NULL) AS component_ids,
+      json_agg(
+        json_build_object(
+          'id', c.id,
+          'project_id', c.project_id,
+          'name', c.name,
+          'description', c.description,
+          'default_assignee_id', c.default_assignee_id,
+          'default_assignee_name', default_assignee.name
+        )
+        ORDER BY c.name
+      ) FILTER (WHERE c.id IS NOT NULL) AS components
+    FROM issue_components ic
+    INNER JOIN components c ON c.id = ic.component_id
+    LEFT JOIN users default_assignee ON default_assignee.id = c.default_assignee_id
+    WHERE ic.issue_id = t.id
+  ) component_summary ON TRUE
   LEFT JOIN LATERAL (
     SELECT
       COUNT(*)::INTEGER AS total_checklists,
@@ -256,11 +368,139 @@ const getActionUser = async (userId, { required = false } = {}) => {
   return user;
 };
 
-// Memastikan priority task termasuk pilihan yang diizinkan aplikasi.
-const validatePriority = (priority) => {
-  if (priority && !VALID_PRIORITIES.includes(priority)) {
-    throw new Error('Priority task tidak valid.');
+// Memastikan priority task termasuk pilihan yang diizinkan priority scheme project.
+const validatePriority = async (priority, projectId) => {
+  if (priority) {
+    await ensurePriorityAllowed(projectId, priority);
   }
+};
+
+const normalizeNullableInteger = (value, fieldName) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const normalizedValue = Number(value);
+
+  if (!Number.isInteger(normalizedValue) || normalizedValue < 0) {
+    throw new Error(`${fieldName} harus berupa angka valid.`);
+  }
+
+  return normalizedValue;
+};
+
+const normalizeStoryPoints = (value) => {
+  const normalizedValue = normalizeNullableInteger(value, 'Story point');
+
+  if (normalizedValue === undefined || normalizedValue === null) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue < 0) {
+    throw new Error('Story point tidak boleh negatif.');
+  }
+
+  return normalizedValue;
+};
+
+const getIssueTypeById = async (issueTypeId) => {
+  if (!issueTypeId) {
+    return null;
+  }
+
+  const result = await query(
+    `
+    SELECT id, name, allowed_parent_types, allowed_child_types, hierarchy_level
+    FROM issue_types
+    WHERE id = $1
+    `,
+    [issueTypeId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getDefaultIssueTypeIdByName = async (issueTypeName) => {
+  const result = await query(
+    `
+    SELECT id
+    FROM issue_types
+    WHERE name = $1 AND project_id IS NULL
+    ORDER BY is_system DESC, id
+    LIMIT 1
+    `,
+    [issueTypeName],
+  );
+
+  return result.rows[0]?.id || null;
+};
+
+const resolveDefaultIssueTypeId = async (parentTaskId) => {
+  return getDefaultIssueTypeIdByName(parentTaskId ? DEFAULT_CHILD_ISSUE_TYPE_NAME : DEFAULT_ROOT_ISSUE_TYPE_NAME);
+};
+
+const resolveIssueHierarchyDefaults = async (projectId, issueTypeId, parentTaskId) => {
+  const issueType = await getIssueTypeById(issueTypeId);
+
+  if (!issueType) {
+    return {};
+  }
+
+  if (issueType.name === 'Subtask' && !parentTaskId) {
+    throw new Error('Subtask wajib memiliki parent issue.');
+  }
+
+  if (!parentTaskId) {
+    return { issueType };
+  }
+
+  const parentResult = await query(
+    `
+    SELECT
+      t.id,
+      t.project_id,
+      t.epic_id,
+      t.sprint_id,
+      parent_type.name AS issue_type_name,
+      parent_type.allowed_child_types
+    FROM tasks t
+    LEFT JOIN issue_types parent_type ON parent_type.id = t.issue_type_id
+    WHERE t.id = $1
+    `,
+    [parentTaskId],
+  );
+  const parentTask = parentResult.rows[0];
+
+  if (!parentTask) {
+    throw new Error('Parent task tidak ditemukan.');
+  }
+
+  if (Number(parentTask.project_id) !== Number(projectId)) {
+    throw new Error('Parent task harus berada pada project yang sama.');
+  }
+
+  const allowedParentTypes = issueType.allowed_parent_types || [];
+  const parentIssueTypeName = parentTask.issue_type_name || DEFAULT_ROOT_ISSUE_TYPE_NAME;
+  const allowedChildTypes = parentTask.allowed_child_types || [DEFAULT_CHILD_ISSUE_TYPE_NAME];
+
+  if (allowedParentTypes.length > 0 && !allowedParentTypes.includes(parentIssueTypeName)) {
+    throw new Error(`Issue type ${issueType.name} tidak dapat berada di bawah ${parentIssueTypeName}.`);
+  }
+
+  if (allowedChildTypes.length > 0 && !allowedChildTypes.includes(issueType.name)) {
+    throw new Error(`Issue type ${parentIssueTypeName} tidak dapat memiliki child ${issueType.name}.`);
+  }
+
+  return {
+    inherited_epic_id: parentTask.epic_id,
+    inherited_sprint_id: parentTask.sprint_id,
+    issueType,
+    parentTask,
+  };
 };
 
 // Membersihkan daftar user id agar hanya angka valid, unik, dan lebih besar dari nol.
@@ -384,32 +624,235 @@ const upsertTaskProjectMembers = async (projectId, userIds = []) => {
   await Promise.all(normalizeUserIds(userIds).map((userId) => upsertProjectMember(projectId, userId, 'member')));
 };
 
+const getDateTimeOrInfinity = (dateValue) => {
+  const parsedDate = dateValue ? new Date(dateValue) : null;
+
+  return parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : Number.POSITIVE_INFINITY;
+};
+
+// Mengubah tanggal mulai project menjadi angka agar task bisa dikelompokkan konsisten.
+const getProjectStartTime = (task) => {
+  const projectStartDate = task.project_start_date || task.project_start || task.project_date || task.start_date;
+  return getDateTimeOrInfinity(projectStartDate);
+};
+
+const getTaskStartTime = (task) => getDateTimeOrInfinity(task.start_date);
+
+const compareTasksBySchedule = (a, b) => {
+  const taskStartDifference = getTaskStartTime(a) - getTaskStartTime(b);
+
+  if (taskStartDifference !== 0) {
+    return taskStartDifference;
+  }
+
+  return (a.sort_order || 0) - (b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0);
+};
+
+const compareTasks = (a, b) => {
+  const projectStartDifference = getProjectStartTime(a) - getProjectStartTime(b);
+
+  if (projectStartDifference !== 0) {
+    return projectStartDifference;
+  }
+
+  const projectNameDifference = (a.project_name || '').localeCompare(b.project_name || '');
+
+  if (projectNameDifference !== 0) {
+    return projectNameDifference;
+  }
+
+  return compareTasksBySchedule(a, b);
+};
+
+const getIssueKeyPrefix = (issueKey) => {
+  if (!issueKey || typeof issueKey !== 'string') {
+    return null;
+  }
+
+  const separatorIndex = issueKey.lastIndexOf('-');
+
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  return issueKey.slice(0, separatorIndex);
+};
+
+const formatScheduleIssueKey = (projectKey, sequenceNumber) => {
+  const normalizedProjectKey = String(projectKey || 'TASK').replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'TASK';
+  const normalizedSequence = Number(sequenceNumber);
+
+  if (!Number.isInteger(normalizedSequence) || normalizedSequence < 1) {
+    return normalizedProjectKey;
+  }
+
+  return `${normalizedProjectKey}${String(normalizedSequence).padStart(2, '0')}`;
+};
+
+const formatHierarchicalScheduleIssueKey = (projectKey, hierarchyPath = []) => {
+  const normalizedPath = hierarchyPath
+    .map((pathPart) => Number(pathPart))
+    .filter((pathPart) => Number.isInteger(pathPart) && pathPart > 0);
+
+  if (!normalizedPath.length) {
+    return formatScheduleIssueKey(projectKey);
+  }
+
+  return [
+    formatScheduleIssueKey(projectKey, normalizedPath[0]),
+    ...normalizedPath.slice(1).map((pathPart) => String(pathPart)),
+  ].join('.');
+};
+
+const resolveScheduleProjectKey = (task) => task.project_key || getIssueKeyPrefix(task.issue_key) || deriveProjectKey(task.project_name);
+
+const buildScheduleMetadataByTaskId = (tasks = []) => {
+  const taskById = new Map();
+
+  tasks.forEach((task) => {
+    const taskId = Number(task.id);
+
+    if (!taskId) {
+      return;
+    }
+
+    taskById.set(taskId, {
+      ...task,
+      id: taskId,
+      parent_task_id: task.parent_task_id ? Number(task.parent_task_id) : null,
+      project_id: task.project_id ? Number(task.project_id) : null,
+      children: [],
+    });
+  });
+
+  const tasksByProjectId = new Map();
+
+  taskById.forEach((task) => {
+    const projectId = Number(task.project_id) || 0;
+    const projectTasks = tasksByProjectId.get(projectId) || [];
+
+    projectTasks.push(task);
+    tasksByProjectId.set(projectId, projectTasks);
+  });
+
+  const flatSequenceByTaskId = new Map();
+
+  tasksByProjectId.forEach((projectTasks) => {
+    [...projectTasks]
+      .sort(compareTasksBySchedule)
+      .forEach((task, index) => {
+        flatSequenceByTaskId.set(Number(task.id), index + 1);
+      });
+  });
+
+  const roots = [];
+
+  taskById.forEach((task) => {
+    if (task.parent_task_id && taskById.has(task.parent_task_id)) {
+      taskById.get(task.parent_task_id).children.push(task);
+      return;
+    }
+
+    roots.push(task);
+  });
+
+  const scheduleMetadataByTaskId = new Map();
+  const assignedTaskIds = new Set();
+
+  const assignTaskMetadata = (task, hierarchyPath) => {
+    const taskId = Number(task.id);
+
+    if (assignedTaskIds.has(taskId)) {
+      return;
+    }
+
+    assignedTaskIds.add(taskId);
+
+    const scheduleIssueKey = formatHierarchicalScheduleIssueKey(resolveScheduleProjectKey(task), hierarchyPath);
+
+    scheduleMetadataByTaskId.set(taskId, {
+      display_issue_key: scheduleIssueKey,
+      schedule_hierarchy_path: hierarchyPath.join('.'),
+      schedule_issue_key: scheduleIssueKey,
+      schedule_sequence_number: flatSequenceByTaskId.get(taskId) || Number(hierarchyPath[0]) || null,
+    });
+
+    task.children.sort(compareTasksBySchedule);
+    task.children.forEach((child, index) => {
+      assignTaskMetadata(child, [...hierarchyPath, index + 1]);
+    });
+  };
+
+  roots.sort(compareTasks);
+  roots.forEach((root) => {
+    assignTaskMetadata(root, [flatSequenceByTaskId.get(Number(root.id)) || 1]);
+  });
+
+  taskById.forEach((task) => {
+    if (assignedTaskIds.has(Number(task.id))) {
+      return;
+    }
+
+    assignTaskMetadata(task, [flatSequenceByTaskId.get(Number(task.id)) || 1]);
+  });
+
+  return scheduleMetadataByTaskId;
+};
+
+const getTaskScheduleRows = async (tasks = []) => {
+  const projectIds = [...new Set(tasks.map((task) => Number(task.project_id)).filter(Boolean))];
+  const taskIds = [...new Set(tasks.map((task) => Number(task.id)).filter(Boolean))];
+
+  if (!projectIds.length || !taskIds.length) {
+    return new Map();
+  }
+
+  const result = await query(
+    `
+      SELECT
+        t.id,
+        t.project_id,
+        t.parent_task_id,
+        t.issue_key,
+        t.start_date,
+        t.sort_order,
+        p.name AS project_name,
+        p.project_key,
+        to_char(p.start_date, 'YYYY-MM-DD') AS project_start_date
+      FROM tasks t
+      LEFT JOIN projects p ON p.id = t.project_id
+      WHERE t.project_id = ANY($1::INTEGER[])
+        AND (t.archived_at IS NULL OR t.id = ANY($2::INTEGER[]))
+      ORDER BY p.start_date NULLS LAST, p.name, t.start_date NULLS LAST, t.sort_order, t.id
+    `,
+    [projectIds, taskIds],
+  );
+
+  const scheduleMetadataByTaskId = buildScheduleMetadataByTaskId(result.rows);
+
+  return new Map(taskIds.map((taskId) => [taskId, scheduleMetadataByTaskId.get(taskId)]).filter(([, metadata]) => metadata));
+};
+
+const addScheduleIssueKeys = async (tasks = []) => {
+  const scheduleRowsByTaskId = await getTaskScheduleRows(tasks);
+
+  return tasks.map((task) => {
+    const scheduleMetadata = scheduleRowsByTaskId.get(Number(task.id));
+
+    if (!scheduleMetadata) {
+      return task;
+    }
+
+    return {
+      ...task,
+      ...scheduleMetadata,
+    };
+  });
+};
+
 // Mengubah daftar task datar dari database menjadi struktur pohon parent-child.
 const buildTaskTree = (tasks) => {
   const taskById = new Map();
-  // Mengubah tanggal mulai project menjadi angka agar task bisa diurutkan.
-  const getProjectStartTime = (task) => {
-    const projectStartDate = task.project_start_date || task.project_start || task.project_date || task.start_date;
-    const parsedDate = projectStartDate ? new Date(projectStartDate) : null;
-
-    return parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : Number.POSITIVE_INFINITY;
-  };
-  // Mengurutkan task agar project dan urutan task tampil konsisten.
-  const compareTasks = (a, b) => {
-    const projectStartDifference = getProjectStartTime(a) - getProjectStartTime(b);
-
-    if (projectStartDifference !== 0) {
-      return projectStartDifference;
-    }
-
-    const projectNameDifference = (a.project_name || '').localeCompare(b.project_name || '');
-
-    if (projectNameDifference !== 0) {
-      return projectNameDifference;
-    }
-
-    return (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id;
-  };
 
   tasks.forEach((task) => {
     taskById.set(task.id, {
@@ -433,7 +876,7 @@ const buildTaskTree = (tasks) => {
   // Memberi level kedalaman agar frontend tahu task berada di tingkat berapa.
   const assignLevel = (task, level) => {
     task.level = level;
-    task.children.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+    task.children.sort(compareTasksBySchedule);
     task.children.forEach((child) => assignLevel(child, level + 1));
   };
 
@@ -486,7 +929,7 @@ const buildUserFilterConditions = ({ departmentParam, locationParam }) => {
 };
 
 // Mengambil daftar task dengan filter project, department, status, PIC, priority, dan tanggal.
-const getTasks = async (filters = {}) => {
+const getTasks = async (filters = {}, context = {}) => {
   const conditions = [];
   const values = [];
 
@@ -607,20 +1050,33 @@ const getTasks = async (filters = {}) => {
     conditions.push(`(t.start_date IS NULL OR t.start_date <= $${values.length})`);
   }
 
+  appendProjectVisibilityCondition(conditions, values, context.user, {
+    projectIdExpression: 't.project_id',
+  });
+
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const result = await query(`${TASK_SELECT} ${whereClause} ORDER BY p.start_date NULLS LAST, p.name, t.sort_order, t.id`, values);
+  const result = await query(`${TASK_SELECT} ${whereClause} ORDER BY p.start_date NULLS LAST, p.name, t.start_date NULLS LAST, t.sort_order, t.id`, values);
+  const tasks = await addScheduleIssueKeys(result.rows);
 
   if (filters.tree) {
-    return buildTaskTree(result.rows);
+    return buildTaskTree(tasks);
   }
 
-  return result.rows;
+  return tasks;
 };
 
 // Mengambil satu task lengkap berdasarkan id.
-const getTaskById = async (id) => {
-  const result = await query(`${TASK_SELECT} WHERE t.id = $1`, [id]);
-  return result.rows[0] || null;
+const getTaskById = async (id, context = {}) => {
+  const conditions = ['t.id = $1'];
+  const values = [id];
+
+  appendProjectVisibilityCondition(conditions, values, context.user, {
+    projectIdExpression: 't.project_id',
+  });
+
+  const result = await query(`${TASK_SELECT} WHERE ${conditions.join(' AND ')}`, values);
+  const tasks = await addScheduleIssueKeys(result.rows);
+  return tasks[0] || null;
 };
 
 // Mengambil data mentah task langsung dari tabel, dipakai untuk validasi internal.
@@ -793,6 +1249,42 @@ const emitTaskRealtimeEvent = (eventName, task, context = {}, metadata = {}) => 
 
   emitToProject(task.project_id, eventName, payload);
   emitToTask(task.id, eventName, payload);
+  emitDashboardMetricsUpdated(task.project_id, {
+    event: eventName,
+    task_id: Number(task.id),
+  });
+};
+
+const autoWatchIssueUsers = async (issueId, userIds = [], context = {}) => {
+  await addIssueWatchers(issueId, userIds, {
+    ...context,
+    auto_watched: true,
+    logActivity: false,
+  });
+};
+
+const notifyTaskWatchers = async (task, context = {}, metadata = {}) => {
+  if (!task?.id) {
+    return [];
+  }
+
+  return notifyIssueWatchers(task.id, {
+    actor_user_id: context.actor_user_id || context.user_id || null,
+    type: metadata.type || 'issue.updated',
+    title: metadata.title || `Issue updated: ${task.issue_key || task.title}`,
+    body: metadata.body || null,
+    metadata,
+  }, {
+    exclude_user_ids: [context.actor_user_id || context.user_id || null],
+  });
+};
+
+const triggerTaskAutomation = async (eventType, task, payload = {}, context = {}) => {
+  try {
+    await triggerAutomation(eventType, task?.id || payload.issue_id || null, payload, context);
+  } catch (error) {
+    console.error(`Automation trigger failed for ${eventType}: ${error.message}`);
+  }
 };
 
 // Membuat task baru, menyimpan PIC, lalu menghitung ulang progress project.
@@ -805,16 +1297,39 @@ const createTask = async (payload, context = {}) => {
     throw new Error('Project wajib dipilih.');
   }
 
-  validatePriority(payload.priority);
+  await validatePriority(payload.priority, payload.project_id);
   await ensureValidParent(null, payload.parent_task_id, payload.project_id);
 
   const createStatus = payload.status || (clampProgress(payload.progress) === 100 ? 'Done' : 'Not Started');
   const taskState = resolveManualTaskState(payload.progress, createStatus);
   const dateMetrics = await calculateTaskDateMetrics(payload.start_date, payload.end_date);
   const assigneeIds = getPayloadAssigneeIds(payload);
+  const componentIds = getComponentIdsFromPayload(payload);
+  const hasExplicitAssigneePayload = hasAssigneePayload(payload);
   const primaryAssigneeId = assigneeIds[0] || null;
   const leadId = payload.lead_id || null;
   const leadName = leadId ? await getUserNameById(leadId) : payload.lead_name || null;
+  const issueKey = payload.issue_key || payload.issueKey || await generateIssueKey(payload.project_id);
+  const storyPoints = normalizeStoryPoints(payload.story_points ?? payload.storyPoints);
+  const requestedIssueTypeId = normalizeNullableInteger(payload.issue_type_id ?? payload.issueTypeId, 'Issue type');
+  const issueTypeId = requestedIssueTypeId === undefined
+    ? await resolveDefaultIssueTypeId(payload.parent_task_id || null)
+    : requestedIssueTypeId;
+  const hasExplicitEpic = payload.epic_id !== undefined || payload.epicId !== undefined;
+  const hasExplicitSprint = payload.sprint_id !== undefined || payload.sprintId !== undefined;
+  let epicId = normalizeNullableInteger(payload.epic_id ?? payload.epicId, 'Epic');
+  let sprintId = normalizeNullableInteger(payload.sprint_id ?? payload.sprintId, 'Sprint');
+  const workflowStateId = normalizeNullableInteger(payload.workflow_state_id ?? payload.workflowStateId, 'Workflow state');
+  const backlogOrder = normalizeNullableInteger(payload.backlog_order ?? payload.backlogOrder, 'Backlog order');
+  const hierarchyDefaults = await resolveIssueHierarchyDefaults(payload.project_id, issueTypeId, payload.parent_task_id || null);
+
+  if (!hasExplicitEpic && hierarchyDefaults.inherited_epic_id) {
+    epicId = hierarchyDefaults.inherited_epic_id;
+  }
+
+  if (!hasExplicitSprint && hierarchyDefaults.inherited_sprint_id) {
+    sprintId = hierarchyDefaults.inherited_sprint_id;
+  }
 
   if (leadId && !leadName) {
     throw new Error('Lead task tidak valid.');
@@ -839,9 +1354,18 @@ const createTask = async (payload, context = {}) => {
         status,
         priority,
         sort_order,
-        creator_id
+        creator_id,
+        issue_key,
+        issue_type_id,
+        story_points,
+        epic_id,
+        sprint_id,
+        workflow_state_id,
+        resolution,
+        environment,
+        backlog_order
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
       RETURNING id
     `,
     [
@@ -862,12 +1386,34 @@ const createTask = async (payload, context = {}) => {
       payload.priority || 'Medium',
       payload.sort_order || 0,
       context.actor_user_id || null,
+      issueKey,
+      issueTypeId,
+      storyPoints,
+      epicId,
+      sprintId,
+      workflowStateId,
+      payload.resolution || null,
+      payload.environment || null,
+      backlogOrder === undefined ? null : backlogOrder,
     ],
   );
 
   await replaceTaskAssignees(result.rows[0].id, assigneeIds);
   const labelIds = await replaceTaskLabels(result.rows[0].id, payload.project_id, payload.label_ids || []);
-  await upsertTaskProjectMembers(payload.project_id, assigneeIds);
+  const componentAssignment = componentIds === undefined
+    ? null
+    : await replaceIssueComponents(result.rows[0].id, componentIds, {
+      ...context,
+      applyDefaultAssignee: !hasExplicitAssigneePayload,
+    });
+  const effectiveAssigneeIds = [
+    ...new Set([
+      ...assigneeIds,
+      ...(componentAssignment?.auto_assigned_user_ids || []),
+    ].map(Number).filter(Boolean)),
+  ];
+
+  await upsertTaskProjectMembers(payload.project_id, effectiveAssigneeIds);
   await recalculateProjectTaskProgress(payload.project_id);
 
   const createdTask = await getTaskById(result.rows[0].id);
@@ -878,12 +1424,20 @@ const createTask = async (payload, context = {}) => {
       'task.create',
       `Task "${createdTask.title}" dibuat.`,
       context,
-      { assignee_ids: assigneeIds, label_ids: labelIds, status: createdTask.status, progress: createdTask.progress },
+      {
+        assignee_ids: effectiveAssigneeIds,
+        component_ids: componentIds || [],
+        label_ids: labelIds,
+        status: createdTask.status,
+        progress: createdTask.progress,
+      },
     ),
   );
 
-  await notifyTaskAssignees(createdTask, assigneeIds, context);
+  await autoWatchIssueUsers(createdTask.id, [context.actor_user_id, ...effectiveAssigneeIds], context);
+  await notifyTaskAssignees(createdTask, effectiveAssigneeIds, context);
   emitTaskRealtimeEvent('task.updated', createdTask, context, { action: 'task.create' });
+  await triggerTaskAutomation('issue_created', createdTask, { issue: createdTask }, context);
 
   return createdTask;
 };
@@ -900,9 +1454,8 @@ const updateTask = async (id, payload, context = {}) => {
     throw new Error('Judul task wajib diisi.');
   }
 
-  validatePriority(payload.priority);
-
   const projectId = payload.project_id || currentTask.project_id;
+  await validatePriority(payload.priority, projectId);
   const parentTaskId = payload.parent_task_id === undefined ? currentTask.parent_task_id : payload.parent_task_id;
 
   await ensureValidParent(id, parentTaskId, projectId);
@@ -912,7 +1465,9 @@ const updateTask = async (id, payload, context = {}) => {
   const dateMetrics = await calculateTaskDateMetrics(startDate, endDate);
   const taskState = resolveTaskStateForFullUpdate(currentTask, payload);
   const previousAssigneeIds = await getTaskAssigneeIds(id, currentTask.assignee_id);
-  const assigneeIds = hasAssigneePayload(payload)
+  const componentIds = getComponentIdsFromPayload(payload);
+  const hasExplicitAssigneePayload = hasAssigneePayload(payload);
+  const assigneeIds = hasExplicitAssigneePayload
     ? getPayloadAssigneeIds(payload)
     : await getTaskAssigneeIds(id, currentTask.assignee_id);
   const primaryAssigneeId = assigneeIds[0] || null;
@@ -925,6 +1480,35 @@ const updateTask = async (id, payload, context = {}) => {
       : leadId
         ? await getUserNameById(leadId)
         : null;
+  const issueTypeId = payload.issue_type_id === undefined && payload.issueTypeId === undefined
+    ? currentTask.issue_type_id
+    : normalizeNullableInteger(payload.issue_type_id ?? payload.issueTypeId, 'Issue type');
+  const storyPoints = payload.story_points === undefined && payload.storyPoints === undefined
+    ? currentTask.story_points
+    : normalizeStoryPoints(payload.story_points ?? payload.storyPoints);
+  const hasExplicitEpic = payload.epic_id !== undefined || payload.epicId !== undefined;
+  const hasExplicitSprint = payload.sprint_id !== undefined || payload.sprintId !== undefined;
+  let epicId = payload.epic_id === undefined && payload.epicId === undefined
+    ? currentTask.epic_id
+    : normalizeNullableInteger(payload.epic_id ?? payload.epicId, 'Epic');
+  let sprintId = payload.sprint_id === undefined && payload.sprintId === undefined
+    ? currentTask.sprint_id
+    : normalizeNullableInteger(payload.sprint_id ?? payload.sprintId, 'Sprint');
+  const workflowStateId = payload.workflow_state_id === undefined && payload.workflowStateId === undefined
+    ? currentTask.workflow_state_id
+    : normalizeNullableInteger(payload.workflow_state_id ?? payload.workflowStateId, 'Workflow state');
+  const backlogOrder = payload.backlog_order === undefined && payload.backlogOrder === undefined
+    ? currentTask.backlog_order
+    : normalizeNullableInteger(payload.backlog_order ?? payload.backlogOrder, 'Backlog order');
+  const hierarchyDefaults = await resolveIssueHierarchyDefaults(projectId, issueTypeId, parentTaskId || null);
+
+  if (!hasExplicitEpic && hierarchyDefaults.inherited_epic_id) {
+    epicId = hierarchyDefaults.inherited_epic_id;
+  }
+
+  if (!hasExplicitSprint && hierarchyDefaults.inherited_sprint_id) {
+    sprintId = hierarchyDefaults.inherited_sprint_id;
+  }
 
   if (leadId && !leadName) {
     throw new Error('Lead task tidak valid.');
@@ -949,8 +1533,16 @@ const updateTask = async (id, payload, context = {}) => {
         progress = $13,
         status = $14,
         priority = $15,
-        sort_order = $16
-      WHERE id = $17
+        sort_order = $16,
+        issue_type_id = $17,
+        story_points = $18,
+        epic_id = $19,
+        sprint_id = $20,
+        workflow_state_id = $21,
+        resolution = $22,
+        environment = $23,
+        backlog_order = $24
+      WHERE id = $25
       RETURNING id
     `,
     [
@@ -970,6 +1562,14 @@ const updateTask = async (id, payload, context = {}) => {
       taskState.status,
       payload.priority || currentTask.priority,
       payload.sort_order === undefined ? currentTask.sort_order : payload.sort_order || 0,
+      issueTypeId,
+      storyPoints,
+      epicId,
+      sprintId,
+      workflowStateId,
+      payload.resolution === undefined ? currentTask.resolution : payload.resolution || null,
+      payload.environment === undefined ? currentTask.environment : payload.environment || null,
+      backlogOrder,
       id,
     ],
   );
@@ -988,7 +1588,20 @@ const updateTask = async (id, payload, context = {}) => {
     await replaceTaskLabels(id, projectId, []);
   }
 
-  await upsertTaskProjectMembers(projectId, assigneeIds);
+  const componentAssignment = componentIds === undefined
+    ? null
+    : await replaceIssueComponents(id, componentIds, {
+      ...context,
+      applyDefaultAssignee: !hasExplicitAssigneePayload,
+    });
+  const effectiveAssigneeIds = [
+    ...new Set([
+      ...assigneeIds,
+      ...(componentAssignment?.auto_assigned_user_ids || []),
+    ].map(Number).filter(Boolean)),
+  ];
+
+  await upsertTaskProjectMembers(projectId, effectiveAssigneeIds);
   await recalculateProjectTaskProgress(currentTask.project_id);
 
   if (Number(currentTask.project_id) !== Number(projectId)) {
@@ -1011,10 +1624,22 @@ const updateTask = async (id, payload, context = {}) => {
     ),
   );
 
+  const previousAssigneeIdSet = new Set(previousAssigneeIds.map(Number));
+  const newAssigneeIds = effectiveAssigneeIds.filter((assigneeId) => !previousAssigneeIdSet.has(Number(assigneeId)));
+
+  if (newAssigneeIds.length > 0) {
+    await autoWatchIssueUsers(updatedTask.id, newAssigneeIds, context);
+  }
+
+  await notifyTaskWatchers(updatedTask, context, {
+    action: 'task.update',
+    changed_fields: Object.keys(payload || {}),
+  });
+
   if (hasAssigneePayload(payload)) {
-    const previousAssigneeIdSet = new Set(previousAssigneeIds.map(Number));
-    const newAssigneeIds = assigneeIds.filter((assigneeId) => !previousAssigneeIdSet.has(Number(assigneeId)));
     await notifyTaskAssignees(updatedTask, newAssigneeIds, context);
+  } else if (componentAssignment?.auto_assigned_user_ids?.length) {
+    await notifyTaskAssignees(updatedTask, componentAssignment.auto_assigned_user_ids, context);
   }
 
   if (currentTask.status !== 'Waiting Review' && (updatedTask.raw_status === 'Waiting Review' || updatedTask.status === 'Waiting Review')) {
@@ -1022,6 +1647,11 @@ const updateTask = async (id, payload, context = {}) => {
   }
 
   emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.update' });
+  await triggerTaskAutomation('issue_updated', updatedTask, {
+    changed_fields: Object.keys(payload || {}),
+    issue: updatedTask,
+    previous_issue: currentTask,
+  }, context);
 
   return updatedTask;
 };
@@ -1083,7 +1713,18 @@ const updateTaskStatus = async (id, status, context = {}) => {
     await notifyTaskWaitingReview(updatedTask, context);
   }
 
+  await notifyTaskWatchers(updatedTask, context, {
+    action: 'task.status.update',
+    previous_status: currentTask.status,
+    status: updatedTask.status,
+  });
+
   emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.status.update' });
+  await triggerTaskAutomation('issue_updated', updatedTask, {
+    changed_fields: ['status', 'progress'],
+    issue: updatedTask,
+    previous_issue: currentTask,
+  }, context);
 
   return updatedTask;
 };
@@ -1126,7 +1767,18 @@ const updateTaskProgress = async (id, progressValue, context = {}) => {
     await notifyTaskWaitingReview(updatedTask, context);
   }
 
+  await notifyTaskWatchers(updatedTask, context, {
+    action: 'task.progress.update',
+    previous_progress: currentTask.progress,
+    progress: updatedTask.progress,
+  });
+
   emitTaskRealtimeEvent('task.updated', updatedTask, context, { action: 'task.progress.update' });
+  await triggerTaskAutomation('issue_updated', updatedTask, {
+    changed_fields: ['progress', 'status'],
+    issue: updatedTask,
+    previous_issue: currentTask,
+  }, context);
 
   return updatedTask;
 };
@@ -1188,7 +1840,17 @@ const approveTask = async (id, approverUserId, context = {}) => {
   const updatedTask = await getTaskById(id);
   const assigneeIds = await getTaskAssigneeIds(id, currentTask.assignee_id);
   await notifyTaskApproved(updatedTask, assigneeIds, { ...context, actor_user_id: approver.id });
+  await notifyTaskWatchers(updatedTask, { ...context, actor_user_id: approver.id }, {
+    action: 'task.approve',
+    previous_status: currentTask.status,
+    status: updatedTask.status,
+  });
   emitTaskRealtimeEvent('task.updated', updatedTask, { ...context, actor_user_id: approver.id }, { action: 'task.approve' });
+  await triggerTaskAutomation('issue_updated', updatedTask, {
+    changed_fields: ['status', 'progress', 'approved_at', 'approved_by'],
+    issue: updatedTask,
+    previous_issue: currentTask,
+  }, { ...context, actor_user_id: approver.id });
 
   return updatedTask;
 };
@@ -1287,12 +1949,26 @@ const updateTaskRealization = async (id, payload = {}) => {
       ip_address: payload.ip_address,
       user_agent: payload.user_agent,
     });
+    await notifyTaskWatchers(updatedTask, {
+      actor_user_id: actionUser.id,
+      ip_address: payload.ip_address,
+      user_agent: payload.user_agent,
+    }, {
+      action: 'task.realization.manual',
+      previous_status: currentTask.status,
+      status: updatedTask.status,
+    });
     emitTaskRealtimeEvent(
       'task.updated',
       updatedTask,
       { actor_user_id: actionUser.id },
       { action: 'task.realization.manual' },
     );
+    await triggerTaskAutomation('issue_updated', updatedTask, {
+      changed_fields: ['actual_start_date', 'actual_end_date', 'progress', 'status'],
+      issue: updatedTask,
+      previous_issue: currentTask,
+    }, { actor_user_id: actionUser.id });
 
     return updatedTask;
   }
@@ -1328,12 +2004,27 @@ const updateTaskRealization = async (id, payload = {}) => {
     );
 
     const updatedTask = await getTaskById(id);
+    await notifyTaskWatchers(updatedTask, {
+      actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null,
+      ip_address: payload.ip_address,
+      user_agent: payload.user_agent,
+    }, {
+      action: 'task.realization.start',
+      previous_status: currentTask.status,
+      status: updatedTask.status,
+      actual_start_date: realizationDate,
+    });
     emitTaskRealtimeEvent(
       'task.updated',
       updatedTask,
       { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null },
       { action: 'task.realization.start' },
     );
+    await triggerTaskAutomation('issue_updated', updatedTask, {
+      changed_fields: ['actual_start_date', 'status'],
+      issue: updatedTask,
+      previous_issue: currentTask,
+    }, { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null });
 
     return updatedTask;
   }
@@ -1388,12 +2079,28 @@ const updateTaskRealization = async (id, payload = {}) => {
       ip_address: payload.ip_address,
       user_agent: payload.user_agent,
     });
+    await notifyTaskWatchers(updatedTask, {
+      actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null,
+      ip_address: payload.ip_address,
+      user_agent: payload.user_agent,
+    }, {
+      action: 'task.realization.finish',
+      previous_status: currentTask.status,
+      status: updatedTask.status,
+      actual_start_date: actualStartDate,
+      actual_end_date: realizationDate,
+    });
     emitTaskRealtimeEvent(
       'task.updated',
       updatedTask,
       { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null },
       { action: 'task.realization.finish' },
     );
+    await triggerTaskAutomation('issue_updated', updatedTask, {
+      changed_fields: ['actual_end_date', 'progress', 'status'],
+      issue: updatedTask,
+      previous_issue: currentTask,
+    }, { actor_user_id: actionUser?.id || payload.actor_user_id || payload.user_id || null });
 
     return updatedTask;
   }
@@ -1451,10 +2158,23 @@ const moveTask = async (id, payload, context = {}) => {
     ),
   );
 
+  await notifyTaskWatchers(updatedTask, context, {
+    action: 'task.move',
+    previous_bucket_id: currentTask.bucket_id,
+    bucket_id: updatedTask.bucket_id,
+    previous_status: currentTask.status,
+    status: updatedTask.status,
+  });
+
   emitTaskRealtimeEvent('task.moved', updatedTask, context, {
     previous_bucket_id: currentTask.bucket_id,
     previous_status: currentTask.status,
   });
+  await triggerTaskAutomation('issue_updated', updatedTask, {
+    changed_fields: ['bucket_id', 'sort_order', 'status', 'progress'],
+    issue: updatedTask,
+    previous_issue: currentTask,
+  }, context);
 
   return updatedTask;
 };
@@ -1503,10 +2223,6 @@ const bulkUpdateTasks = async (payload = {}, context = {}) => {
     throw new Error('Aksi bulk update tidak valid.');
   }
 
-  if (action === 'priority') {
-    validatePriority(payload.priority);
-  }
-
   if (action === 'status' && !VALID_STATUSES.includes(payload.status)) {
     throw new Error('Status task tidak valid.');
   }
@@ -1516,6 +2232,14 @@ const bulkUpdateTasks = async (payload = {}, context = {}) => {
 
   if (!currentTasks.length) {
     throw new Error('Task tidak ditemukan.');
+  }
+
+  if (action === 'priority') {
+    const projectIds = [...new Set(currentTasks.map((task) => Number(task.project_id)).filter(Boolean))];
+
+    for (const projectId of projectIds) {
+      await validatePriority(payload.priority, projectId);
+    }
   }
 
   const updatedTaskIds = [];
@@ -1574,22 +2298,22 @@ const bulkUpdateTasks = async (payload = {}, context = {}) => {
 };
 
 // Mengambil task untuk satu project saja.
-const getProjectTasks = async (projectId, options = {}) => {
+const getProjectTasks = async (projectId, options = {}, context = {}) => {
   return getTasks({
     ...options,
     project_id: projectId,
-  });
+  }, context);
 };
 
 // Mengambil semua subtask turunannya dari satu task.
-const getSubtasks = async (id) => {
-  const task = await getTaskRawById(id);
+const getSubtasks = async (id, context = {}) => {
+  const task = await getTaskById(id, context);
 
   if (!task) {
     throw new Error('Task tidak ditemukan.');
   }
 
-  const tree = await getProjectTasks(task.project_id, { tree: true });
+  const tree = await getProjectTasks(task.project_id, { tree: true }, context);
   const flattened = flattenTaskTree(tree);
   const selectedTask = flattened.find((item) => Number(item.id) === Number(id));
 
@@ -1764,7 +2488,9 @@ module.exports = {
   bulkUpdateTasks,
   createTask,
   deleteTask,
+  addScheduleIssueKeys,
   flattenTaskTree,
+  formatScheduleIssueKey,
   getProjectTasks,
   getSubtasks,
   getTaskById,

@@ -7,7 +7,7 @@ import FormField from '../shared/FormField';
 import Modal from '../shared/Modal';
 
 // Panel untuk membuat, mengedit, dan menghapus bucket dalam satu project.
-function BucketManager({ projectId, buckets = [], onChanged }) {
+function BucketManager({ canCreate = true, canDelete = true, canUpdate = true, projectId, buckets = [], onChanged }) {
   const [name, setName] = useState('');
   const [editingBucket, setEditingBucket] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -92,21 +92,27 @@ function BucketManager({ projectId, buckets = [], onChanged }) {
           <h2 className="section-title">Project Buckets</h2>
           <p className="section-subtitle">Bucket menjadi kolom saat Board memakai Group by Bucket.</p>
         </div>
-        <button className="btn-primary" type="button" onClick={openCreateModal}>
-          Tambah Bucket
-        </button>
+        {canCreate ? (
+          <button className="btn-primary" type="button" onClick={openCreateModal}>
+            Tambah Bucket
+          </button>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">
         {buckets.map((bucket) => (
           <span key={bucket.id} className="inline-flex items-center gap-2 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm font-semibold">
             {bucket.name}
-            <button className="text-primary" type="button" onClick={() => openEditModal(bucket)}>
-              Edit
-            </button>
-            <button className="text-danger" type="button" onClick={() => handleDelete(bucket.id)}>
-              Delete
-            </button>
+            {canUpdate ? (
+              <button className="text-primary" type="button" onClick={() => openEditModal(bucket)}>
+                Edit
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button className="text-danger" type="button" onClick={() => handleDelete(bucket.id)}>
+                Delete
+              </button>
+            ) : null}
           </span>
         ))}
         {!buckets.length ? <p className="text-sm text-text-muted">Belum ada bucket untuk project ini.</p> : null}

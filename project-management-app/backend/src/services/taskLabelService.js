@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { appendProjectVisibilityCondition } = require('./projectAccessService');
 
 const VALID_LABEL_COLORS = ['slate', 'blue', 'green', 'amber', 'red', 'purple', 'pink', 'cyan'];
 
@@ -9,7 +10,7 @@ const normalizeLabelColor = (color) => {
 
 const normalizeLabelName = (name) => String(name || '').trim().replace(/\s+/g, ' ');
 
-const getTaskLabels = async (filters = {}) => {
+const getTaskLabels = async (filters = {}, context = {}) => {
   const conditions = [];
   const values = [];
 
@@ -17,6 +18,10 @@ const getTaskLabels = async (filters = {}) => {
     values.push(filters.project_id);
     conditions.push(`tl.project_id = $${values.length}`);
   }
+
+  appendProjectVisibilityCondition(conditions, values, context.user, {
+    projectIdExpression: 'tl.project_id',
+  });
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await query(

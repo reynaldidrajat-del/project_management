@@ -120,13 +120,42 @@ CREATE TABLE IF NOT EXISTS releases (
   description TEXT,
   start_date DATE,
   release_date DATE,
+  status VARCHAR(30) DEFAULT 'unreleased' CHECK (status IN ('unreleased', 'released', 'archived')),
   released BOOLEAN DEFAULT FALSE,
   released_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE releases ADD COLUMN IF NOT EXISTS status VARCHAR(30);
+ALTER TABLE releases ALTER COLUMN status SET DEFAULT 'unreleased';
+ALTER TABLE releases ADD COLUMN IF NOT EXISTS released BOOLEAN DEFAULT FALSE;
+
+UPDATE releases
+SET status = CASE
+  WHEN released IS TRUE THEN 'released'
+  ELSE 'unreleased'
+END
+WHERE status IS NULL
+  OR status NOT IN ('unreleased', 'released', 'archived');
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'releases_status_allowed'
+      AND conrelid = 'releases'::regclass
+  ) THEN
+    ALTER TABLE releases
+      ADD CONSTRAINT releases_status_allowed
+      CHECK (status IN ('unreleased', 'released', 'archived'));
+  END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_releases_project_id ON releases(project_id);
+CREATE INDEX IF NOT EXISTS idx_releases_status ON releases(status);
 CREATE INDEX IF NOT EXISTS idx_releases_release_date ON releases(release_date);
 
 -- ============================================================================

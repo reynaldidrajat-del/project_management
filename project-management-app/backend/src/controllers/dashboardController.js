@@ -2,8 +2,8 @@ const { getDashboardSummary } = require('../services/dashboardService');
 const { asyncHandler, sendSuccess } = require('../utils/responseUtils');
 
 // Mengambil ringkasan dashboard agar halaman utama punya angka monitoring.
-const getSummary = asyncHandler(async (_req, res) => {
-  const summary = await getDashboardSummary();
+const getSummary = asyncHandler(async (req, res) => {
+  const summary = await getDashboardSummary({ user: req.user });
   sendSuccess(res, summary);
 });
 

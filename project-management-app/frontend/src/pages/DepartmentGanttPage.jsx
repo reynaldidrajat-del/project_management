@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import GanttChart from '../components/gantt/GanttChart';
-import TaskDetailModal from '../components/task/TaskDetailModal';
+import TaskDetailModal from '../components/task/LazyTaskDetailModal';
 import { formatDate } from '../logic/helpers/dateHelper';
 import { getTaskAssigneeNames, getTaskLeadName } from '../logic/helpers/taskPeopleHelper';
 import { flattenTaskTree } from '../logic/helpers/taskTreeHelper';

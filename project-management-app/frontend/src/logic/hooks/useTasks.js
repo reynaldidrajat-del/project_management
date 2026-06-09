@@ -36,10 +36,12 @@ export const useTasks = (filters = {}) => {
 
     window.addEventListener('realtime:task.updated', handleRealtimeTaskEvent);
     window.addEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+    window.addEventListener('realtime:automation.execution.created', handleRealtimeTaskEvent);
 
     return () => {
       window.removeEventListener('realtime:task.updated', handleRealtimeTaskEvent);
       window.removeEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+      window.removeEventListener('realtime:automation.execution.created', handleRealtimeTaskEvent);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
@@ -91,10 +93,12 @@ export const useProjectTasks = (projectId, filters = {}) => {
 
     window.addEventListener('realtime:task.updated', handleRealtimeTaskEvent);
     window.addEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+    window.addEventListener('realtime:automation.execution.created', handleRealtimeTaskEvent);
 
     return () => {
       window.removeEventListener('realtime:task.updated', handleRealtimeTaskEvent);
       window.removeEventListener('realtime:task.moved', handleRealtimeTaskEvent);
+      window.removeEventListener('realtime:automation.execution.created', handleRealtimeTaskEvent);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, filterKey]);

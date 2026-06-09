@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import TaskCalendarView from '../components/task/TaskCalendarView';
-import TaskDetailModal from '../components/task/TaskDetailModal';
+import TaskDetailModal from '../components/task/LazyTaskDetailModal';
 import TaskFilters from '../components/task/TaskFilters';
 import { useDepartments } from '../logic/hooks/useDepartments';
 import { useLocations } from '../logic/hooks/useLocations';

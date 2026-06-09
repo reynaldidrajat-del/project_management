@@ -14,22 +14,34 @@ function DashboardPage() {
   const [error, setError] = useState('');
   const { projects } = useProjects();
 
+  const fetchSummary = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      setSummary(await getDashboardSummary());
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Mengambil ringkasan dashboard dari API saat halaman dibuka.
-    const fetchSummary = async () => {
-      setLoading(true);
-      setError('');
+    fetchSummary();
+  }, []);
 
-      try {
-        setSummary(await getDashboardSummary());
-      } catch (err) {
-        setError(getApiErrorMessage(err));
-      } finally {
-        setLoading(false);
-      }
+  useEffect(() => {
+    const handleRealtimeDashboardEvent = () => {
+      fetchSummary();
     };
 
-    fetchSummary();
+    window.addEventListener('realtime:dashboard.metrics.updated', handleRealtimeDashboardEvent);
+
+    return () => {
+      window.removeEventListener('realtime:dashboard.metrics.updated', handleRealtimeDashboardEvent);
+    };
   }, []);
 
   if (loading) {

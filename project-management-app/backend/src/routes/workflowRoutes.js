@@ -130,6 +130,6 @@ router.get('/issues/:issueId/transitions', getAvailableTransitions);
  * @route POST /api/workflows/issues/:issueId/transitions/:transitionId
  * @desc Execute a transition on an issue
  */
-router.post('/issues/:issueId/transitions/:transitionId', executeTransition);
+router.post('/issues/:issueId/transitions/:transitionId', checkPermission('execute_workflows'), executeTransition);
 
 module.exports = router;

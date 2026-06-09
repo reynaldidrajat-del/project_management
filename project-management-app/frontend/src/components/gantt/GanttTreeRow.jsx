@@ -1,8 +1,11 @@
 import { getTaskAssigneeNames, getTaskLeadName } from '../../logic/helpers/taskPeopleHelper';
+import { getTaskDisplayKey } from '../../logic/helpers/taskDisplayHelper';
+import IssueTypeBadge from '../task/IssueTypeBadge';
 
 // Baris kiri Gantt yang menampilkan nama task dan tombol expand/collapse.
 function GanttTreeRow({ task, collapsed, onSelect, onToggle }) {
   const hasChildren = Boolean(task.children?.length);
+  const taskDisplayKey = getTaskDisplayKey(task);
 
   return (
     <div className="relative z-50 flex h-16 items-center border-b border-border bg-white px-3 text-sm" style={{ paddingLeft: `${12 + (task.level || 0) * 18}px` }}>
@@ -20,6 +23,16 @@ function GanttTreeRow({ task, collapsed, onSelect, onToggle }) {
         type="button"
         onClick={() => onSelect?.(task)}
       >
+        {!task.isProjectGroup ? (
+          <div className="mb-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
+            <IssueTypeBadge
+              color={task.issue_type_color}
+              icon={task.issue_type_icon}
+              name={task.issue_type_name}
+            />
+            {taskDisplayKey ? <span className="truncate text-[11px] font-bold text-text-muted">{taskDisplayKey}</span> : null}
+          </div>
+        ) : null}
         <p className={task.isProjectGroup || hasChildren ? 'truncate font-bold text-text-dark' : 'truncate font-semibold text-text-dark'}>
           {task.title}
         </p>

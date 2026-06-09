@@ -1,0 +1,68 @@
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:381:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at Object.keyGenerator (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:811:20)
+    at C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:893:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:854:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:381:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at Object.keyGenerator (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:811:20)
+    at C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:893:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:854:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:381:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at Object.keyGenerator (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:811:20)
+    at C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:893:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:854:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+ValidationError: The 'X-Forwarded-For' header is set but the Express 'trust proxy' setting is false (default). This could indicate a misconfiguration which would prevent express-rate-limit from accurately identifying users. See https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/ for more information.
+    at Object.xForwardedForHeader (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:381:13)
+    at wrappedValidations.<computed> [as xForwardedForHeader] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at Object.keyGenerator (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:811:20)
+    at C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:893:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:854:5 {
+  code: 'ERR_ERL_UNEXPECTED_X_FORWARDED_FOR',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/'
+}
+ValidationError: Custom keyGenerator appears to use request IP without calling the ipKeyGenerator helper function for IPv6 addresses. This could allow IPv6 users to bypass limits. See https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/ for more information.
+    at Object.keyGeneratorIpFallback (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:653:13)
+    at wrappedValidations.<computed> [as keyGeneratorIpFallback] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at parseOptions (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:778:16)
+    at rateLimit (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:860:18)
+    at Object.<anonymous> (C:\laragon\www\Project Management\project-management-app\backend\src\middlewares\securityMiddleware.js:20:24)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14) {
+  code: 'ERR_ERL_KEY_GEN_IPV6',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/'
+}
+ValidationError: Custom keyGenerator appears to use request IP without calling the ipKeyGenerator helper function for IPv6 addresses. This could allow IPv6 users to bypass limits. See https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/ for more information.
+    at Object.keyGeneratorIpFallback (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:653:13)
+    at wrappedValidations.<computed> [as keyGeneratorIpFallback] (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:704:22)
+    at parseOptions (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:778:16)
+    at rateLimit (C:\laragon\www\Project Management\project-management-app\backend\node_modules\express-rate-limit\dist\index.cjs:860:18)
+    at Object.<anonymous> (C:\laragon\www\Project Management\project-management-app\backend\src\middlewares\securityMiddleware.js:33:25)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14) {
+  code: 'ERR_ERL_KEY_GEN_IPV6',
+  help: 'https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/'
+}

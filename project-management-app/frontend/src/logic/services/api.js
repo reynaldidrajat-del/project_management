@@ -1,11 +1,7 @@
 import axios from 'axios';
 
 const getDefaultApiBaseUrl = () => {
-  if (typeof window === 'undefined') {
-    return 'http://localhost:5000/api';
-  }
-
-  return `${window.location.protocol}//${window.location.hostname}:5000/api`;
+  return '/api';
 };
 
 // Membuat client HTTP bersama agar semua request API memakai base URL dan header yang sama.

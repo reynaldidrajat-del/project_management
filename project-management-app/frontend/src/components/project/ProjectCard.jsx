@@ -56,12 +56,16 @@ function ProjectCard({ project, onEdit, onDelete }) {
         <Link className="btn-primary" to={`/projects/${project.id}`}>
           Detail
         </Link>
-        <button className="btn-secondary" type="button" onClick={() => onEdit(project)}>
-          Edit
-        </button>
-        <button className="btn-secondary text-danger" type="button" onClick={() => onDelete(project.id)}>
-          Delete
-        </button>
+        {onEdit ? (
+          <button className="btn-secondary" type="button" onClick={() => onEdit(project)}>
+            Edit
+          </button>
+        ) : null}
+        {onDelete ? (
+          <button className="btn-secondary text-danger" type="button" onClick={() => onDelete(project.id)}>
+            Delete
+          </button>
+        ) : null}
       </div>
     </div>
   );

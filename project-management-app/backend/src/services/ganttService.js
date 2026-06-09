@@ -2,16 +2,16 @@ const { query } = require('../config/db');
 const { getTasks } = require('./taskService');
 
 // Mengambil task dalam bentuk tree agar mudah digambar sebagai Gantt chart.
-const getAllGanttTasks = async (filters = {}) => {
+const getAllGanttTasks = async (filters = {}, context = {}) => {
   return getTasks({
     ...filters,
     tree: true,
-  });
+  }, context);
 };
 
 // Mengambil Gantt hanya untuk satu project.
-const getProjectGanttTasks = async (projectId) => {
-  return getAllGanttTasks({ project_id: projectId });
+const getProjectGanttTasks = async (projectId, context = {}) => {
+  return getAllGanttTasks({ project_id: projectId }, context);
 };
 
 const getDepartmentLocationCondition = (alias, locationParam) => {
@@ -19,7 +19,7 @@ const getDepartmentLocationCondition = (alias, locationParam) => {
 };
 
 // Mengambil ringkasan department, user, project, dan task untuk Gantt department.
-const getDepartmentGanttTasks = async (departmentId, filters = {}) => {
+const getDepartmentGanttTasks = async (departmentId, filters = {}, context = {}) => {
   const values = [departmentId];
   let locationParam = '';
 
@@ -142,7 +142,7 @@ const getDepartmentGanttTasks = async (departmentId, filters = {}) => {
       `,
       values,
     ),
-    getAllGanttTasks({ department_id: departmentId, location_id: filters.location_id }),
+    getAllGanttTasks({ department_id: departmentId, location_id: filters.location_id }, context),
   ]);
 
   return {

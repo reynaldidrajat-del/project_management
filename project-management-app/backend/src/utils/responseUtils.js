@@ -22,7 +22,7 @@ const sendError = (res, error, message = 'Terjadi kesalahan', statusCode = 500) 
 const inferStatusCode = (error) => {
   const message = error instanceof Error ? error.message : String(error);
 
-  if (message.includes('tidak ditemukan')) {
+  if (message.includes('tidak ditemukan') || message.toLowerCase().includes('not found')) {
     return 404;
   }
 
@@ -40,12 +40,20 @@ const inferStatusCode = (error) => {
 
   if (
     message.includes('wajib') ||
+    message.includes('required') ||
+    message.toLowerCase().includes('duplicate') ||
+    message.toLowerCase().includes('already exists') ||
     message.includes('tidak valid') ||
+    message.toLowerCase().includes('invalid') ||
     message.includes('tidak boleh') ||
+    message.includes('Cannot') ||
+    message.includes('cannot') ||
     message.includes('tidak aktif') ||
     message.includes('Hanya') ||
     message.includes('hanya') ||
-    message.includes('harus')
+    message.includes('harus') ||
+    message.includes('must') ||
+    message.includes('No ')
   ) {
     return 400;
   }

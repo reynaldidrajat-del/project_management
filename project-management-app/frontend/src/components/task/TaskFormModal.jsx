@@ -5,7 +5,10 @@ import { TASK_STATUSES } from '../../logic/constants/status';
 import { formatDate, toDateInputValue } from '../../logic/helpers/dateHelper';
 import { getTaskLabelBadgeClass } from '../../logic/helpers/taskLabelHelper';
 import { flattenTaskTree } from '../../logic/helpers/taskTreeHelper';
+import { useEpics } from '../../logic/hooks/useEpics';
+import { useIssueTypes } from '../../logic/hooks/useIssueTypes';
 import { useBuckets } from '../../logic/hooks/useProjects';
+import IssueTypeBadge from './IssueTypeBadge';
 import FormField from '../shared/FormField';
 import Modal from '../shared/Modal';
 
@@ -13,6 +16,8 @@ import Modal from '../shared/Modal';
 const initialForm = {
   title: '',
   description: '',
+  issue_type_id: '',
+  epic_id: '',
   project_id: '',
   bucket_id: '',
   parent_task_id: '',
@@ -32,6 +37,52 @@ const statusDescriptions = {
   'Waiting Review': 'Pekerjaan selesai dan menunggu approval lead.',
   Done: 'Task sudah approved.',
   Overdue: 'Task melewati plan end date.',
+};
+
+const getArrayValue = (value) => (Array.isArray(value) ? value : []);
+
+const getDefaultIssueTypeId = (issueTypes, hasParent, forceSubtask = false) => {
+  const preferredNames = forceSubtask ? ['Subtask'] : hasParent ? ['Subtask', 'Task', 'Story', 'Bug'] : ['Task', 'Story', 'Bug', 'Epic'];
+  const preferredType = preferredNames
+    .map((name) => issueTypes.find((issueType) => issueType.name === name))
+    .find(Boolean);
+
+  return preferredType?.id || issueTypes[0]?.id || '';
+};
+
+const getParentIssueType = (issueTypes, parentTask) => {
+  if (!parentTask) {
+    return null;
+  }
+
+  return (
+    issueTypes.find((issueType) => Number(issueType.id) === Number(parentTask.issue_type_id)) ||
+    issueTypes.find((issueType) => issueType.name === parentTask.issue_type_name) ||
+    (parentTask.issue_type_name ? { name: parentTask.issue_type_name, allowed_child_types: [] } : null)
+  );
+};
+
+const isAllowedChildIssueType = (issueType, parentIssueType) => {
+  if (!parentIssueType) {
+    return issueType.name !== 'Subtask';
+  }
+
+  const allowedParentTypes = getArrayValue(issueType.allowed_parent_types);
+  const allowedChildTypes = getArrayValue(parentIssueType.allowed_child_types);
+  const parentAllowsChild = !allowedChildTypes.length || allowedChildTypes.includes(issueType.name);
+  const childAllowsParent = !allowedParentTypes.length || allowedParentTypes.includes(parentIssueType.name);
+
+  return parentAllowsChild && childAllowsParent;
+};
+
+const getAvailableIssueTypes = (issueTypes, parentIssueType, forceSubtask = false) => {
+  const validIssueTypes = issueTypes.filter((issueType) => isAllowedChildIssueType(issueType, parentIssueType));
+
+  if (!forceSubtask) {
+    return validIssueTypes;
+  }
+
+  return validIssueTypes.filter((issueType) => issueType.name === 'Subtask');
 };
 
 // Mengubah daftar id menjadi string unik agar aman dipakai di input form.
@@ -67,6 +118,14 @@ const getLastChildTask = (parentTask) => {
   }
 
   return [...children].sort((firstTask, secondTask) => {
+    const firstDate = firstTask.end_date || firstTask.start_date || '';
+    const secondDate = secondTask.end_date || secondTask.start_date || '';
+    const dateDifference = firstDate.localeCompare(secondDate);
+
+    if (dateDifference !== 0) {
+      return dateDifference;
+    }
+
     const sortOrderDifference = Number(firstTask.sort_order || 0) - Number(secondTask.sort_order || 0);
 
     if (sortOrderDifference !== 0) {
@@ -274,13 +333,26 @@ function TaskFormModal({
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const { buckets } = useBuckets(form.project_id);
+  const { issueTypes, loading: issueTypesLoading } = useIssueTypes(form.project_id, { enabled: open });
+  const { epics } = useEpics(form.project_id, { enabled: open && Boolean(form.project_id) });
   const allTasks = flattenTaskTree(tasks);
   const taskHasChildren = Boolean(task?.children?.length);
   const parentLocked = Boolean(parentTask && !task);
+  const subtaskCreateMode = parentLocked;
+  const selectedParentTask = parentTask || allTasks.find((item) => Number(item.id) === Number(form.parent_task_id)) || null;
+  const parentIssueType = getParentIssueType(issueTypes, selectedParentTask);
+  const availableIssueTypes = getAvailableIssueTypes(issueTypes, parentIssueType, subtaskCreateMode);
   const modalDescription = parentTask
     ? `Parent: ${parentTask.title}. Start Date: ${formatDate(parentTask.start_date)}. End Date: ${formatDate(parentTask.end_date)}.`
     : 'Task menjadi sumber data Board, List, dan Gantt. Tanggal task akan dihitung otomatis menjadi duration days dan work days di backend.';
   const subtaskDateHint = parentLocked ? getSubtaskDateHint(parentTask) : undefined;
+  const issueTypeHint = subtaskCreateMode
+    ? `Subtask baru otomatis memakai issue type Subtask di bawah "${selectedParentTask?.title || 'parent'}".`
+    : selectedParentTask
+    ? `Issue type tersedia mengikuti parent ${parentIssueType?.name || 'task'} "${selectedParentTask.title}".`
+    : undefined;
+  const availableIssueTypeIds = availableIssueTypes.map((issueType) => String(issueType.id)).join('|');
+  const selectedIssueTypeIsValid = availableIssueTypes.some((issueType) => Number(issueType.id) === Number(form.issue_type_id));
 
   useEffect(() => {
     setErrors({});
@@ -289,6 +361,8 @@ function TaskFormModal({
       setForm({
         title: task.title || '',
         description: task.description || '',
+        issue_type_id: task.issue_type_id ? String(task.issue_type_id) : '',
+        epic_id: task.epic_id ? String(task.epic_id) : '',
         project_id: task.project_id || '',
         bucket_id: task.bucket_id || '',
         parent_task_id: task.parent_task_id || '',
@@ -307,6 +381,8 @@ function TaskFormModal({
     setForm({
       ...initialForm,
       project_id: defaultProjectId || parentTask?.project_id || '',
+      issue_type_id: '',
+      epic_id: parentTask?.epic_id ? String(parentTask.epic_id) : '',
       parent_task_id: parentTask?.id || '',
       bucket_id: parentTask?.bucket_id || '',
       assignee_ids: toStringIds(getTaskAssigneeIds(parentTask)),
@@ -315,6 +391,37 @@ function TaskFormModal({
       label_ids: [],
     });
   }, [task, parentTask, defaultProjectId, open]);
+
+  useEffect(() => {
+    if (!open || !availableIssueTypes.length || selectedIssueTypeIsValid) {
+      return;
+    }
+
+    const defaultIssueTypeId = getDefaultIssueTypeId(availableIssueTypes, Boolean(selectedParentTask), subtaskCreateMode);
+
+    if (!defaultIssueTypeId) {
+      return;
+    }
+
+    setForm((current) => {
+      const currentIssueTypeIsValid = availableIssueTypes.some((issueType) => Number(issueType.id) === Number(current.issue_type_id));
+
+      if (currentIssueTypeIsValid) {
+        return current;
+      }
+
+      return { ...current, issue_type_id: String(defaultIssueTypeId) };
+    });
+    setErrors((current) => {
+      if (!current.issue_type_id) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors.issue_type_id;
+      return nextErrors;
+    });
+  }, [availableIssueTypeIds, form.issue_type_id, open, selectedIssueTypeIsValid, selectedParentTask?.id, subtaskCreateMode]);
 
   if (!open) {
     return null;
@@ -433,6 +540,16 @@ function TaskFormModal({
       nextErrors.project_id = 'Pilih project untuk task.';
     }
 
+    if (subtaskCreateMode && !availableIssueTypes.length) {
+      nextErrors.issue_type_id = `Parent ${parentIssueType?.name || 'task'} "${selectedParentTask?.title || ''}" tidak dapat memiliki Subtask.`;
+    } else if (!form.issue_type_id) {
+      nextErrors.issue_type_id = 'Pilih issue type.';
+    } else if (availableIssueTypes.length && !availableIssueTypes.some((issueType) => Number(issueType.id) === Number(form.issue_type_id))) {
+      nextErrors.issue_type_id = selectedParentTask
+        ? `Issue type ini tidak valid untuk parent ${parentIssueType?.name || 'task'} "${selectedParentTask.title}".`
+        : 'Issue type ini tidak valid untuk task utama.';
+    }
+
     if (form.start_date && form.end_date && form.end_date < form.start_date) {
       nextErrors.end_date = 'End date tidak boleh lebih awal dari start date.';
     }
@@ -453,6 +570,8 @@ function TaskFormModal({
       ...form,
       title: form.title.trim(),
       description: form.description.trim(),
+      issue_type_id: form.issue_type_id || null,
+      epic_id: form.epic_id || null,
       project_id: parentTask?.project_id || form.project_id || null,
       bucket_id: form.bucket_id || null,
       parent_task_id: parentTask?.id || form.parent_task_id || null,
@@ -474,8 +593,9 @@ function TaskFormModal({
     : selectableParents;
   const isEditing = Boolean(task);
   const currentProject = projects.find((project) => Number(project.id) === Number(form.project_id));
+  const currentIssueType = issueTypes.find((issueType) => Number(issueType.id) === Number(form.issue_type_id));
+  const currentEpic = epics.find((epic) => Number(epic.id) === Number(form.epic_id));
   const currentBucket = buckets.find((bucket) => Number(bucket.id) === Number(form.bucket_id));
-  const currentLead = users.find((user) => Number(user.id) === Number(form.lead_id));
   const availableLabels = labels.filter((label) => Number(label.project_id) === Number(form.project_id));
   const statusOptions = (task?.raw_status || task?.status) === 'Done'
     ? TASK_STATUSES
@@ -501,10 +621,16 @@ function TaskFormModal({
       onClose={onClose}
     >
       <form id="task-form" noValidate onSubmit={handleSubmit}>
-        <div className="mb-4 grid gap-3 rounded-xl border border-border bg-slate-50 p-3 sm:grid-cols-4">
+        <div className="mb-4 grid gap-3 rounded-xl border border-border bg-slate-50 p-3 sm:grid-cols-5">
           <div>
             <p className="label">Mode</p>
             <p className="mt-1 text-sm font-bold text-text-dark">{formModeLabel}</p>
+          </div>
+          <div>
+            <p className="label">Issue Type</p>
+            <div className="mt-1">
+              <IssueTypeBadge issueType={currentIssueType} name={currentIssueType?.name || '-'} />
+            </div>
           </div>
           <div>
             <p className="label">Project</p>
@@ -515,8 +641,8 @@ function TaskFormModal({
             <p className="mt-1 truncate text-sm font-bold text-text-dark">{currentBucket?.name || 'No bucket'}</p>
           </div>
           <div>
-            <p className="label">Lead</p>
-            <p className="mt-1 truncate text-sm font-bold text-text-dark">{currentLead?.name || 'No lead'}</p>
+            <p className="label">Epic</p>
+            <p className="mt-1 truncate text-sm font-bold text-text-dark">{currentEpic?.epic_name || 'No epic'}</p>
           </div>
         </div>
 
@@ -547,6 +673,30 @@ function TaskFormModal({
             <TaskFormSection title="Structure" description="Project, bucket, dan parent menentukan posisi task di board dan tree.">
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
+                  error={errors.issue_type_id}
+                  hint={issueTypeHint}
+                  htmlFor="task-issue-type"
+                  label="Issue Type"
+                  required
+                >
+                  <select
+                    className={`field mt-1 ${errors.issue_type_id ? 'field-error' : ''}`}
+                    disabled={issueTypesLoading || subtaskCreateMode}
+                    id="task-issue-type"
+                    value={form.issue_type_id}
+                    onChange={(event) => updateField('issue_type_id', event.target.value)}
+                  >
+                    <option value="">
+                      {issueTypesLoading ? 'Loading issue types...' : availableIssueTypes.length ? 'Pilih issue type' : 'Tidak ada issue type valid'}
+                    </option>
+                    {availableIssueTypes.map((issueType) => (
+                      <option key={issueType.id} value={issueType.id}>
+                        {issueType.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField
                   error={errors.project_id}
                   hint={parentLocked ? 'Project mengikuti task parent.' : undefined}
                   htmlFor="task-project"
@@ -563,6 +713,8 @@ function TaskFormModal({
                       updateField('project_id', event.target.value);
                       updateField('bucket_id', '');
                       updateField('parent_task_id', '');
+                      updateField('issue_type_id', '');
+                      updateField('epic_id', '');
                       updateField('label_ids', []);
                     }}
                   >
@@ -580,6 +732,16 @@ function TaskFormModal({
                     {buckets.map((bucket) => (
                       <option key={bucket.id} value={bucket.id}>
                         {bucket.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField htmlFor="task-epic" label="Epic">
+                  <select className="field mt-1" id="task-epic" value={form.epic_id} onChange={(event) => updateField('epic_id', event.target.value)}>
+                    <option value="">No epic</option>
+                    {epics.map((epic) => (
+                      <option key={epic.id} value={epic.id}>
+                        {epic.epic_name}
                       </option>
                     ))}
                   </select>

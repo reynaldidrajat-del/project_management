@@ -4,10 +4,10 @@ let socket = null;
 
 const getDefaultRealtimeUrl = () => {
   if (typeof window === 'undefined') {
-    return 'http://localhost:5000';
+    return undefined;
   }
 
-  return `${window.location.protocol}//${window.location.hostname}:5000`;
+  return window.location.origin;
 };
 
 const getRealtimeUrl = () => {

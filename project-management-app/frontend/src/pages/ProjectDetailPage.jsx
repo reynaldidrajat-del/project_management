@@ -8,7 +8,7 @@ import GanttChart from '../components/gantt/GanttChart';
 import BucketManager from '../components/project/BucketManager';
 import ProjectHeader from '../components/project/ProjectHeader';
 import TaskCalendarView from '../components/task/TaskCalendarView';
-import TaskDetailModal from '../components/task/TaskDetailModal';
+import TaskDetailModal from '../components/task/LazyTaskDetailModal';
 import TaskFormModal from '../components/task/TaskFormModal';
 import TaskRealizationManualModal from '../components/task/TaskRealizationManualModal';
 import TaskTree from '../components/task/TaskTree';
@@ -16,6 +16,7 @@ import { useProject, useBuckets, useProjects } from '../logic/hooks/useProjects'
 import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useProjectTasks } from '../logic/hooks/useTasks';
 import { useUsers } from '../logic/hooks/useUsers';
+import { hasRolePermission } from '../logic/helpers/permissionHelper';
 import { getApiErrorMessage } from '../logic/services/api';
 import { approveTask, createTask, deleteTask, updateTask, updateTaskRealization } from '../logic/services/taskApi';
 import { useUiStore } from '../store/uiStore';
@@ -41,6 +42,16 @@ function ProjectDetailPage() {
   const { tasks, loading: tasksLoading, refetch } = useProjectTasks(projectId, { tree: true });
   const showToast = useUiStore((state) => state.showToast);
   const currentUserId = useUiStore((state) => state.currentUserId);
+  const currentUser = useUiStore((state) => state.currentUser);
+  const canCreateTask = hasRolePermission(currentUser, 'task', 'create');
+  const canUpdateTask = hasRolePermission(currentUser, 'task', 'update');
+  const canDeleteTask = hasRolePermission(currentUser, 'task', 'delete');
+  const canMoveTask = hasRolePermission(currentUser, 'task', 'move');
+  const canApproveTask = hasRolePermission(currentUser, 'task', 'approve');
+  const canRealizeTask = hasRolePermission(currentUser, 'task', 'realization');
+  const canCreateBucket = hasRolePermission(currentUser, 'bucket', 'create');
+  const canUpdateBucket = hasRolePermission(currentUser, 'bucket', 'update');
+  const canDeleteBucket = hasRolePermission(currentUser, 'bucket', 'delete');
 
   useEffect(() => {
     const handleRealtimeTaskEvent = (event) => {
@@ -75,6 +86,11 @@ function ProjectDetailPage() {
 
   // Membuat atau mengubah task dari modal form.
   const handleSubmit = async (payload) => {
+    if ((editingTask && !canUpdateTask) || (!editingTask && !canCreateTask)) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk menyimpan task.' });
+      return;
+    }
+
     try {
       if (editingTask) {
         await updateTask(editingTask.id, payload);
@@ -99,6 +115,11 @@ function ProjectDetailPage() {
 
   // Menghapus task setelah konfirmasi.
   const handleDelete = async (task) => {
+    if (!canDeleteTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk menghapus task.' });
+      return;
+    }
+
     if (!window.confirm(`Hapus task "${task.title}"?`)) {
       return;
     }
@@ -114,6 +135,11 @@ function ProjectDetailPage() {
 
   // Mengapprove task Waiting Review dari tab List detail project.
   const handleApprove = async (task) => {
+    if (!canApproveTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk approve task.' });
+      return;
+    }
+
     if (!currentUserId) {
       showToast({ type: 'error', message: 'User login tidak ditemukan.' });
       return;
@@ -130,6 +156,11 @@ function ProjectDetailPage() {
 
   // Mencatat realisasi mulai atau selesai untuk task.
   const handleRealization = async (task, action) => {
+    if (!canRealizeTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk mengubah realisasi task.' });
+      return;
+    }
+
     if (!currentUserId) {
       showToast({ type: 'error', message: 'User login tidak ditemukan.' });
       return;
@@ -146,6 +177,11 @@ function ProjectDetailPage() {
 
   // Menyimpan realisasi manual dari modal.
   const handleManualRealization = async (payload) => {
+    if (!canRealizeTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk mengubah realisasi task.' });
+      return;
+    }
+
     if (!manualRealizationTask) {
       return;
     }
@@ -185,26 +221,48 @@ function ProjectDetailPage() {
             </button>
           ))}
         </div>
-        <button
-          className="btn-primary"
-          type="button"
-          onClick={() => {
-            setEditingTask(null);
-            setParentTask(null);
-            setFormOpen(true);
-          }}
-        >
-          Tambah Task
-        </button>
+        {canCreateTask ? (
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => {
+              setEditingTask(null);
+              setParentTask(null);
+              setFormOpen(true);
+            }}
+          >
+            Tambah Task
+          </button>
+        ) : null}
       </div>
 
-      <BucketManager projectId={projectId} buckets={buckets} onChanged={refreshBucketsAndTasks} />
+      <BucketManager
+        canCreate={canCreateBucket}
+        canDelete={canDeleteBucket}
+        canUpdate={canUpdateBucket}
+        projectId={projectId}
+        buckets={buckets}
+        onChanged={refreshBucketsAndTasks}
+      />
 
       {tasksLoading ? <div className="card p-6 text-text-muted">Loading tasks...</div> : null}
 
-      {activeTab === 'Board' ? <BoardView tasks={tasks} buckets={buckets} onRefresh={refreshProjectWorkspace} onTaskClick={setSelectedTask} /> : null}
+      {activeTab === 'Board' ? (
+        <BoardView
+          canMoveTask={canMoveTask}
+          tasks={tasks}
+          buckets={buckets}
+          onRefresh={refreshProjectWorkspace}
+          onTaskClick={setSelectedTask}
+        />
+      ) : null}
       {activeTab === 'List' ? (
         <TaskTree
+          canApproveTask={canApproveTask}
+          canCreateTask={canCreateTask}
+          canDeleteTask={canDeleteTask}
+          canRealizeTask={canRealizeTask}
+          canUpdateTask={canUpdateTask}
           tasks={tasks}
           onApprove={handleApprove}
           onDelete={handleDelete}

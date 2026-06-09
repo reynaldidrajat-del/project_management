@@ -118,7 +118,7 @@ function CommentEditor({ users, value, mentionUserIds, submitting, submitLabel, 
 }
 
 // Thread komentar task dengan mention, read-by, edit, dan soft delete.
-function CommentThread({ task, users = [] }) {
+function CommentThread({ canCreate = true, canDelete = true, canUpdate = true, task, users = [] }) {
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
   const [mentionUserIds, setMentionUserIds] = useState([]);
@@ -303,14 +303,18 @@ function CommentThread({ task, users = [] }) {
                       </div>
                       <div className="flex items-center gap-3">
                         <ReadByPopover readReceipts={comment.read_receipts || []} />
-                        {canMutate ? (
+                        {canMutate && (canUpdate || canDelete) ? (
                           <div className="flex items-center gap-2">
-                            <button className="text-xs font-bold text-primary" type="button" onClick={() => startEditComment(comment)}>
-                              Edit
-                            </button>
-                            <button className="text-xs font-bold text-danger" type="button" onClick={() => handleDeleteComment(comment)}>
-                              Delete
-                            </button>
+                            {canUpdate ? (
+                              <button className="text-xs font-bold text-primary" type="button" onClick={() => startEditComment(comment)}>
+                                Edit
+                              </button>
+                            ) : null}
+                            {canDelete ? (
+                              <button className="text-xs font-bold text-danger" type="button" onClick={() => handleDeleteComment(comment)}>
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
@@ -354,16 +358,18 @@ function CommentThread({ task, users = [] }) {
         )}
       </div>
 
-      <CommentEditor
-        mentionUserIds={mentionUserIds}
-        submitLabel="Post Comment"
-        submitting={submitting}
-        users={users}
-        value={commentText}
-        onMentionChange={setMentionUserIds}
-        onSubmit={handleCreateComment}
-        onValueChange={setCommentText}
-      />
+      {canCreate ? (
+        <CommentEditor
+          mentionUserIds={mentionUserIds}
+          submitLabel="Post Comment"
+          submitting={submitting}
+          users={users}
+          value={commentText}
+          onMentionChange={setMentionUserIds}
+          onSubmit={handleCreateComment}
+          onValueChange={setCommentText}
+        />
+      ) : null}
     </section>
   );
 }

@@ -23,6 +23,22 @@ const parsePort = (value) => {
   return port;
 };
 
+const parsePositiveInteger = (name, fallback) => {
+  const value = process.env[name];
+
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const numericValue = Number(value);
+
+  if (!Number.isInteger(numericValue) || numericValue <= 0) {
+    throw new Error(`${name} harus berupa angka positif.`);
+  }
+
+  return numericValue;
+};
+
 const dbConfig = {
   host: requiredEnv('DB_HOST'),
   port: parsePort(requiredEnv('DB_PORT')),
@@ -34,9 +50,10 @@ const dbConfig = {
 // Membuat koneksi bersama ke PostgreSQL berdasarkan nilai di file .env.
 const pool = new Pool({
   ...dbConfig,
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-  max: Number(process.env.DB_POOL_MAX || 10),
+  connectionTimeoutMillis: parsePositiveInteger('DB_POOL_CONNECTION_TIMEOUT_MS', 5000),
+  idleTimeoutMillis: parsePositiveInteger('DB_POOL_IDLE_TIMEOUT_MS', 30000),
+  max: parsePositiveInteger('DB_POOL_MAX', 12),
+  statement_timeout: parsePositiveInteger('DB_STATEMENT_TIMEOUT_MS', 30000),
 });
 
 // Fungsi kecil agar semua file lain cukup memanggil query SQL tanpa membuat koneksi baru.

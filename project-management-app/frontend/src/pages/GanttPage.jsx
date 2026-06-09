@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import GanttChart from '../components/gantt/GanttChart';
 import GanttFilters from '../components/gantt/GanttFilters';
 import ProjectHeader from '../components/project/ProjectHeader';
-import TaskDetailModal from '../components/task/TaskDetailModal';
+import TaskDetailModal from '../components/task/LazyTaskDetailModal';
 import { useDepartments } from '../logic/hooks/useDepartments';
 import { useLocations } from '../logic/hooks/useLocations';
 import { useProject, useProjects } from '../logic/hooks/useProjects';

@@ -8,6 +8,7 @@ import { useLocations } from '../logic/hooks/useLocations';
 import { useProjects } from '../logic/hooks/useProjects';
 import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useUsers } from '../logic/hooks/useUsers';
+import { hasRolePermission } from '../logic/helpers/permissionHelper';
 import { getApiErrorMessage } from '../logic/services/api';
 import { createProject, deleteProject, updateProject } from '../logic/services/projectApi';
 import { useUiStore } from '../store/uiStore';
@@ -35,6 +36,12 @@ function ProjectsPage() {
   const { locations } = useLocations();
   const { labels, refetch: refetchLabels } = useTaskLabels(labelProjectId);
   const showToast = useUiStore((state) => state.showToast);
+  const currentUser = useUiStore((state) => state.currentUser);
+  const canCreateProject = hasRolePermission(currentUser, 'project', 'create');
+  const canUpdateProject = hasRolePermission(currentUser, 'project', 'update');
+  const canDeleteProject = hasRolePermission(currentUser, 'project', 'delete');
+  const canCreateTaskLabel = hasRolePermission(currentUser, 'task_label', 'create');
+  const canDeleteTaskLabel = hasRolePermission(currentUser, 'task_label', 'delete');
 
   useEffect(() => {
     if (!labelProjects.length) {
@@ -98,9 +105,11 @@ function ProjectsPage() {
           <h1 className="page-title">Projects</h1>
           <p className="page-description">Kelola project sebagai sumber data Board, List, dan Gantt.</p>
         </div>
-        <button className="btn-primary" type="button" onClick={() => setModalOpen(true)}>
-          Tambah Project
-        </button>
+        {canCreateProject ? (
+          <button className="btn-primary" type="button" onClick={() => setModalOpen(true)}>
+            Tambah Project
+          </button>
+        ) : null}
       </div>
 
       <div className="toolbar">
@@ -188,7 +197,15 @@ function ProjectsPage() {
             </select>
           </label>
         </div>
-        <TaskLabelManager embedded hideHeader projectId={labelProjectId} labels={labelProjectId ? labels : []} onChanged={refetchLabels} />
+        <TaskLabelManager
+          canCreate={canCreateTaskLabel}
+          canDelete={canDeleteTaskLabel}
+          embedded
+          hideHeader
+          projectId={labelProjectId}
+          labels={labelProjectId ? labels : []}
+          onChanged={refetchLabels}
+        />
       </div>
 
       {loading ? <div className="card p-6 text-text-muted">Loading projects...</div> : null}
@@ -199,11 +216,15 @@ function ProjectsPage() {
           <ProjectCard
             key={project.id}
             project={project}
-            onDelete={handleDelete}
-            onEdit={(selectedProject) => {
-              setEditingProject(selectedProject);
-              setModalOpen(true);
-            }}
+            onDelete={canDeleteProject ? handleDelete : undefined}
+            onEdit={
+              canUpdateProject
+                ? (selectedProject) => {
+                    setEditingProject(selectedProject);
+                    setModalOpen(true);
+                  }
+                : undefined
+            }
           />
         ))}
       </div>

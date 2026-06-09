@@ -9,9 +9,13 @@ CREATE TABLE IF NOT EXISTS issue_links (
   link_type VARCHAR(30) NOT NULL,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT issue_links_type_allowed CHECK (link_type IN ('blocks', 'is_blocked_by', 'relates_to', 'duplicates', 'is_duplicated_by')),
   CONSTRAINT issue_links_not_self_referential CHECK (source_issue_id <> target_issue_id)
 );
+
+ALTER TABLE issue_links
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- Unique constraint to prevent duplicate links between the same two issues with the same type
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issue_links_unique ON issue_links(source_issue_id, target_issue_id, link_type);

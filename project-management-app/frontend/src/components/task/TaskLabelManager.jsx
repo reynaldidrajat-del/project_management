@@ -11,7 +11,7 @@ const initialForm = {
 };
 
 // Pengelola label task sederhana per project.
-function TaskLabelManager({ embedded = false, hideHeader = false, projectId, labels = [], onChanged }) {
+function TaskLabelManager({ canCreate = true, canDelete = true, embedded = false, hideHeader = false, projectId, labels = [], onChanged }) {
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const showToast = useUiStore((state) => state.showToast);
@@ -71,38 +71,42 @@ function TaskLabelManager({ embedded = false, hideHeader = false, projectId, lab
           </div>
         </div>
       )}
-      <form className="grid gap-2 sm:grid-cols-[1fr_160px_auto]" onSubmit={handleSubmit}>
-        <input
-          className="field"
-          disabled={!projectId || loading}
-          placeholder={projectId ? 'Nama label' : 'Pilih project dulu'}
-          value={form.name}
-          onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-        />
-        <select
-          className="field"
-          disabled={!projectId || loading}
-          value={form.color}
-          onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
-        >
-          {TASK_LABEL_COLORS.map((color) => (
-            <option key={color} value={color}>
-              {color}
-            </option>
-          ))}
-        </select>
-        <button className="btn-primary" disabled={!projectId || loading} type="submit">
-          Add Label
-        </button>
-      </form>
+      {canCreate ? (
+        <form className="grid gap-2 sm:grid-cols-[1fr_160px_auto]" onSubmit={handleSubmit}>
+          <input
+            className="field"
+            disabled={!projectId || loading}
+            placeholder={projectId ? 'Nama label' : 'Pilih project dulu'}
+            value={form.name}
+            onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+          />
+          <select
+            className="field"
+            disabled={!projectId || loading}
+            value={form.color}
+            onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
+          >
+            {TASK_LABEL_COLORS.map((color) => (
+              <option key={color} value={color}>
+                {color}
+              </option>
+            ))}
+          </select>
+          <button className="btn-primary" disabled={!projectId || loading} type="submit">
+            Add Label
+          </button>
+        </form>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {labels.length ? (
           labels.map((label) => (
             <span key={label.id} className={`badge inline-flex items-center gap-2 ${getTaskLabelBadgeClass(label.color)}`}>
               {label.name}
-              <button className="font-black" type="button" onClick={() => handleDelete(label)}>
-                x
-              </button>
+              {canDelete ? (
+                <button className="font-black" type="button" onClick={() => handleDelete(label)}>
+                  x
+                </button>
+              ) : null}
             </span>
           ))
         ) : (

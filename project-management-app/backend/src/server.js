@@ -5,26 +5,46 @@ const http = require('http');
 
 const activityRoutes = require('./routes/activityRoutes');
 const authRoutes = require('./routes/authRoutes');
+const automationRoutes = require('./routes/automationRoutes');
+const backlogRoutes = require('./routes/backlogRoutes');
+const bulkOperationsRoutes = require('./routes/bulkOperationsRoutes');
+const burndownRoutes = require('./routes/burndownRoutes');
 const bucketRoutes = require('./routes/bucketRoutes');
 const calendarRoutes = require('./routes/calendarRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const componentRoutes = require('./routes/componentRoutes');
 const customFieldRoutes = require('./routes/customFieldRoutes');
+const dashboardMetricsRoutes = require('./routes/dashboardMetricsRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
+const epicRoutes = require('./routes/epicRoutes');
 const ganttRoutes = require('./routes/ganttRoutes');
+const hierarchyRoutes = require('./routes/hierarchyRoutes');
+const importExportRoutes = require('./routes/importExportRoutes');
+const issueLinkRoutes = require('./routes/issueLinkRoutes');
 const issueTypeRoutes = require('./routes/issueTypeRoutes');
+const jqlRoutes = require('./routes/jqlRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const performanceRoutes = require('./routes/performanceRoutes');
+const prioritySchemeRoutes = require('./routes/prioritySchemeRoutes');
 const projectRoutes = require('./routes/projectRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const sprintRoutes = require('./routes/sprintRoutes');
 const taskChecklistRoutes = require('./routes/taskChecklistRoutes');
 const taskCommentRoutes = require('./routes/taskCommentRoutes');
 const taskLabelRoutes = require('./routes/taskLabelRoutes');
 const taskRoutes = require('./routes/taskRoutes');
+const templateRoutes = require('./routes/templateRoutes');
+const timeTrackingRoutes = require('./routes/timeTrackingRoutes');
 const userRoutes = require('./routes/userRoutes');
+const versionRoutes = require('./routes/versionRoutes');
+const velocityRoutes = require('./routes/velocityRoutes');
+const watcherRoutes = require('./routes/watcherRoutes');
 const workflowRoutes = require('./routes/workflowRoutes');
 const { verifyApplicationSchema, verifyDatabaseConnection } = require('./config/db');
 const { authenticateRequest } = require('./middlewares/authMiddleware');
+const { apiRateLimiter, authRateLimiter, securityHeaders } = require('./middlewares/securityMiddleware');
 const { initializeRealtimeServer } = require('./services/realtimeService');
 const { sendError, sendSuccess } = require('./utils/responseUtils');
 
@@ -34,6 +54,7 @@ dotenv.config();
 const app = express();
 const httpServer = http.createServer(app);
 const port = process.env.PORT || 5000;
+const host = (process.env.HOST || '').trim();
 
 const configuredFrontendOrigins = (process.env.FRONTEND_URL || '')
   .split(',')
@@ -71,6 +92,7 @@ const corsOriginHandler = (origin, callback) => {
   callback(new Error('Origin tidak diizinkan oleh CORS.'));
 };
 
+app.use(securityHeaders);
 app.use(
   cors({
     origin: corsOriginHandler,
@@ -93,27 +115,46 @@ app.get('/', (_req, res) => {
 });
 
 // Mendaftarkan semua kelompok route API sesuai domain fitur.
-app.use('/api/auth', authRoutes);
-app.use('/api', authenticateRequest);
+app.use('/api/auth', authRateLimiter, authRoutes);
+app.use('/api', authenticateRequest, apiRateLimiter);
 app.use('/api/activities', activityRoutes);
+app.use('/api/automation', automationRoutes);
+app.use('/api/backlog', backlogRoutes);
+app.use('/api/bulk-operations', bulkOperationsRoutes);
+app.use('/api/burndown', burndownRoutes);
+app.use('/api/components', componentRoutes);
 app.use('/api/custom-fields', customFieldRoutes);
+app.use('/api/dashboard-metrics', dashboardMetricsRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/epics', epicRoutes);
+app.use('/api/issue-links', issueLinkRoutes);
 app.use('/api/issue-types', issueTypeRoutes);
+app.use('/api/jql', jqlRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/sprints', sprintRoutes);
 app.use('/api/buckets', bucketRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/task-checklists', taskChecklistRoutes);
 app.use('/api/task-comments', taskCommentRoutes);
 app.use('/api/task-labels', taskLabelRoutes);
+app.use('/api/time-tracking', timeTrackingRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/gantt', ganttRoutes);
+app.use('/api/hierarchy', hierarchyRoutes);
+app.use('/api/import-export', importExportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/versions', versionRoutes);
+app.use('/api/velocity', velocityRoutes);
+app.use('/api/watchers', watcherRoutes);
 app.use('/api/workflows', workflowRoutes);
+app.use('/api/priority-schemes', prioritySchemeRoutes);
+app.use('/api/templates', templateRoutes);
 
 // Menangani URL API yang tidak dikenal.
 app.use((_req, res) => {
@@ -131,11 +172,21 @@ const startServer = async () => {
     const connection = await verifyDatabaseConnection();
     await verifyApplicationSchema();
 
-    httpServer.listen(port, () => {
+    const logServerReady = () => {
+      const networkAccessHint =
+        host === '0.0.0.0' || host === '::' ? ` and LAN via http://<server-ip>:${port}` : '';
+
       console.log(
-        `Project Management API running on http://localhost:${port} using database ${connection.database}@${connection.server_addr}:${connection.server_port}`,
+        `Project Management API running on http://localhost:${port}${networkAccessHint} using database ${connection.database}@${connection.server_addr}:${connection.server_port}`,
       );
-    });
+    };
+
+    if (host) {
+      httpServer.listen(port, host, logServerReady);
+      return;
+    }
+
+    httpServer.listen(port, logServerReady);
   } catch (error) {
     console.error(`Database startup validation failed: ${error.message}`);
     process.exit(1);

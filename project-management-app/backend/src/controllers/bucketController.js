@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { logActivity } = require('../services/activityService');
+const { appendProjectVisibilityCondition } = require('../services/projectAccessService');
 const { asyncHandler, sendError, sendSuccess } = require('../utils/responseUtils');
 
 const getRequestActivityContext = (req) => ({
@@ -10,9 +11,23 @@ const getRequestActivityContext = (req) => ({
 
 // Mengambil semua bucket milik satu project untuk pilihan board dan form task.
 const getBucketsByProject = asyncHandler(async (req, res) => {
-  const result = await query('SELECT * FROM buckets WHERE project_id = $1 ORDER BY sort_order, id', [
-    req.params.projectId,
-  ]);
+  const conditions = ['b.project_id = $1'];
+  const values = [req.params.projectId];
+
+  appendProjectVisibilityCondition(conditions, values, req.user, {
+    projectIdExpression: 'b.project_id',
+  });
+
+  const result = await query(
+    `
+      SELECT b.*
+      FROM buckets b
+      INNER JOIN projects p ON p.id = b.project_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY b.sort_order, b.id
+    `,
+    values,
+  );
 
   sendSuccess(res, result.rows);
 });

@@ -19,6 +19,39 @@ CREATE TABLE IF NOT EXISTS releases (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Keep existing releases tables aligned with the current service contract.
+-- Older foundation migrations created releases.released but not releases.status.
+ALTER TABLE releases ADD COLUMN IF NOT EXISTS status VARCHAR(30);
+ALTER TABLE releases ALTER COLUMN status SET DEFAULT 'unreleased';
+ALTER TABLE releases ADD COLUMN IF NOT EXISTS released BOOLEAN DEFAULT FALSE;
+
+UPDATE releases
+SET status = CASE
+  WHEN released IS TRUE THEN 'released'
+  ELSE 'unreleased'
+END
+WHERE status IS NULL
+  OR status NOT IN ('unreleased', 'released', 'archived');
+
+UPDATE releases
+SET released = (status = 'released')
+WHERE released IS DISTINCT FROM (status = 'released');
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'releases_status_allowed'
+      AND conrelid = 'releases'::regclass
+  ) THEN
+    ALTER TABLE releases
+      ADD CONSTRAINT releases_status_allowed
+      CHECK (status IN ('unreleased', 'released', 'archived'));
+  END IF;
+END;
+$$;
+
 -- Indexes for releases table
 CREATE INDEX IF NOT EXISTS idx_releases_project_id ON releases(project_id);
 CREATE INDEX IF NOT EXISTS idx_releases_status ON releases(status);

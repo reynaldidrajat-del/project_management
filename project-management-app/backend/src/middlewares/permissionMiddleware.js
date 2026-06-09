@@ -36,6 +36,14 @@ const checkPermission = (permission) => {
     // Sprint permissions
     manage_sprints: { resource: 'sprint', action: '*' },
     read_sprints: { resource: 'sprint', action: 'read' },
+
+    // Agile planning permissions
+    manage_backlog: { resource: 'backlog', action: '*' },
+    read_backlog: { resource: 'backlog', action: 'read' },
+    manage_epics: { resource: 'epic', action: '*' },
+    read_epics: { resource: 'epic', action: 'read' },
+    manage_versions: { resource: 'version', action: '*' },
+    read_versions: { resource: 'version', action: 'read' },
   };
 
   const mapping = permissionMap[permission];

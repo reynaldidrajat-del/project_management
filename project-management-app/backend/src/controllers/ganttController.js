@@ -7,19 +7,19 @@ const { asyncHandler, sendSuccess } = require('../utils/responseUtils');
 
 // Mengambil data Gantt global dengan filter dari query string.
 const getAllGantt = asyncHandler(async (req, res) => {
-  const tasks = await getAllGanttTasks(req.query);
+  const tasks = await getAllGanttTasks(req.query, { user: req.user });
   sendSuccess(res, tasks);
 });
 
 // Mengambil data Gantt untuk satu project.
 const getProjectGantt = asyncHandler(async (req, res) => {
-  const tasks = await getProjectGanttTasks(req.params.projectId);
+  const tasks = await getProjectGanttTasks(req.params.projectId, { user: req.user });
   sendSuccess(res, tasks);
 });
 
 // Mengambil data Gantt gabungan untuk satu department.
 const getDepartmentGantt = asyncHandler(async (req, res) => {
-  const tasks = await getDepartmentGanttTasks(req.params.departmentId, req.query);
+  const tasks = await getDepartmentGanttTasks(req.params.departmentId, req.query, { user: req.user });
   sendSuccess(res, tasks);
 });
 

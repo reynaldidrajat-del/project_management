@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { appendProjectVisibilityCondition } = require('./projectAccessService');
 
 // Query dasar untuk membaca project beserta owner, member, dan department terkait.
 const PROJECT_SELECT = `
@@ -136,7 +137,7 @@ const buildUserInvolvementFilter = ({ departmentParam, locationParam }) => {
 };
 
 // Mengambil daftar project, termasuk filter status, owner, department, lokasi, dan rentang tanggal.
-const getProjects = async (filters = {}) => {
+const getProjects = async (filters = {}, context = {}) => {
   const conditions = [];
   const values = [];
 
@@ -207,6 +208,8 @@ const getProjects = async (filters = {}) => {
     conditions.push(`(p.start_date IS NULL OR p.start_date <= $${values.length})`);
   }
 
+  appendProjectVisibilityCondition(conditions, values, context.user);
+
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await query(`${PROJECT_SELECT} ${whereClause} ORDER BY p.created_at DESC`, values);
 
@@ -214,8 +217,13 @@ const getProjects = async (filters = {}) => {
 };
 
 // Mengambil detail project berdasarkan id.
-const getProjectById = async (id) => {
-  const result = await query(`${PROJECT_SELECT} WHERE p.id = $1`, [id]);
+const getProjectById = async (id, context = {}) => {
+  const conditions = ['p.id = $1'];
+  const values = [id];
+
+  appendProjectVisibilityCondition(conditions, values, context.user);
+
+  const result = await query(`${PROJECT_SELECT} WHERE ${conditions.join(' AND ')}`, values);
   return result.rows[0] || null;
 };
 

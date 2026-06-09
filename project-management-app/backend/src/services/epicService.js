@@ -37,7 +37,14 @@ const getEpics = async (projectId) => {
     [projectId]
   );
 
-  return result.rows;
+  const epics = result.rows;
+
+  return Promise.all(
+    epics.map(async (epic) => ({
+      ...epic,
+      progress: await calculateEpicProgress(epic.id),
+    }))
+  );
 };
 
 /**

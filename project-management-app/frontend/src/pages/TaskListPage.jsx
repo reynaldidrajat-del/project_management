@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import IssueExportMenu from '../components/import-export/IssueExportMenu';
 import TaskBulkToolbar from '../components/task/TaskBulkToolbar';
 import TaskFilters from '../components/task/TaskFilters';
 import TaskFormModal from '../components/task/TaskFormModal';
@@ -9,11 +10,14 @@ import TaskTree from '../components/task/TaskTree';
 import { useDepartments } from '../logic/hooks/useDepartments';
 import { useLocations } from '../logic/hooks/useLocations';
 import { useBuckets, useProject, useProjects } from '../logic/hooks/useProjects';
+import { useSprints } from '../logic/hooks/useSprints';
 import { useTaskLabels } from '../logic/hooks/useTaskLabels';
 import { useTasks } from '../logic/hooks/useTasks';
 import { useUsers } from '../logic/hooks/useUsers';
 import { getApiErrorMessage } from '../logic/services/api';
-import { approveTask, createTask, deleteTask, updateTask, updateTaskRealization } from '../logic/services/taskApi';
+import { hasRolePermission } from '../logic/helpers/permissionHelper';
+import { flattenTaskTree } from '../logic/helpers/taskTreeHelper';
+import { approveTask, createTask, deleteTask, getTasks, updateTask, updateTaskRealization } from '../logic/services/taskApi';
 import { useUiStore } from '../store/uiStore';
 
 // Halaman Task List untuk melihat task bertingkat dan mengelola task/subtask.
@@ -45,11 +49,32 @@ function TaskListPage({
   const { departments } = useDepartments();
   const { locations } = useLocations();
   const { users } = useUsers();
+  const flatTasks = useMemo(() => flattenTaskTree(tasks), [tasks]);
+  const selectedTasks = useMemo(
+    () => flatTasks.filter((task) => selectedTaskIds.has(Number(task.id))),
+    [flatTasks, selectedTaskIds],
+  );
+  const selectedProjectIds = useMemo(
+    () => Array.from(new Set(selectedTasks.map((task) => Number(task.project_id)).filter(Boolean))),
+    [selectedTasks],
+  );
+  const sprintProjectId = selectedProjectIds.length === 1 ? selectedProjectIds[0] : selectedProjectId;
+  const { sprints, loading: sprintsLoading } = useSprints(sprintProjectId, {}, { enabled: Boolean(sprintProjectId) });
   const showToast = useUiStore((state) => state.showToast);
   const currentUserId = useUiStore((state) => state.currentUserId);
+  const currentUser = useUiStore((state) => state.currentUser);
+  const canCreateTask = hasRolePermission(currentUser, 'task', 'create');
+  const canUpdateTask = hasRolePermission(currentUser, 'task', 'update');
+  const canDeleteTask = hasRolePermission(currentUser, 'task', 'delete');
+  const canApproveTask = hasRolePermission(currentUser, 'task', 'approve');
+  const canRealizeTask = hasRolePermission(currentUser, 'task', 'realization');
+  const canExecuteBulkOperation = hasRolePermission(currentUser, 'bulk_operation', 'execute');
 
-  const refreshTasks = async () => {
-    setSelectedTaskIds(new Set());
+  const refreshTasks = async (options = {}) => {
+    if (!options.preserveSelection) {
+      setSelectedTaskIds(new Set());
+    }
+
     await refetch();
   };
 
@@ -72,8 +97,22 @@ function TaskListPage({
     });
   };
 
+  const loadAllIssuesForExport = async () => {
+    const exportFilters = {
+      ...(projectId ? { project_id: projectId } : defaultFilters.my_tasks ? defaultFilters : {}),
+      tree: true,
+    };
+
+    return flattenTaskTree(await getTasks(exportFilters));
+  };
+
   // Membuka form untuk membuat task utama baru.
   const openCreateModal = () => {
+    if (!canCreateTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk membuat task.' });
+      return;
+    }
+
     setEditingTask(null);
     setParentTask(null);
     setModalOpen(true);
@@ -81,6 +120,11 @@ function TaskListPage({
 
   // Mengapprove task Waiting Review, hanya jika user aktif adalah lead task.
   const handleApprove = async (task) => {
+    if (!canApproveTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk approve task.' });
+      return;
+    }
+
     if (!currentUserId) {
       showToast({ type: 'error', message: 'User login tidak ditemukan.' });
       return;
@@ -97,6 +141,11 @@ function TaskListPage({
 
   // Menyimpan task baru, subtask baru, atau perubahan task.
   const handleSubmit = async (payload) => {
+    if ((editingTask && !canUpdateTask) || (!editingTask && !canCreateTask)) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk menyimpan task.' });
+      return;
+    }
+
     try {
       if (editingTask) {
         await updateTask(editingTask.id, payload);
@@ -121,6 +170,11 @@ function TaskListPage({
 
   // Menghapus task dan subtask turunannya setelah konfirmasi.
   const handleDelete = async (task) => {
+    if (!canDeleteTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk menghapus task.' });
+      return;
+    }
+
     if (!window.confirm(`Hapus task "${task.title}" dan subtask di bawahnya?`)) {
       return;
     }
@@ -136,6 +190,11 @@ function TaskListPage({
 
   // Mencatat realisasi mulai atau selesai dari baris task.
   const handleRealization = async (task, action) => {
+    if (!canRealizeTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk mengubah realisasi task.' });
+      return;
+    }
+
     if (!currentUserId) {
       showToast({ type: 'error', message: 'User login tidak ditemukan.' });
       return;
@@ -152,6 +211,11 @@ function TaskListPage({
 
   // Menyimpan realisasi manual untuk task yang sedang dipilih.
   const handleManualRealization = async (payload) => {
+    if (!canRealizeTask) {
+      showToast({ type: 'error', message: 'User tidak memiliki izin untuk mengubah realisasi task.' });
+      return;
+    }
+
     if (!manualRealizationTask) {
       return;
     }
@@ -180,12 +244,20 @@ function TaskListPage({
           <p className="page-description">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <IssueExportMenu
+            currentIssues={flatTasks}
+            disabled={loading}
+            fileNamePrefix={projectId ? `project-${projectId}-issues` : defaultFilters.my_tasks ? 'my-issues' : 'issues'}
+            onLoadAllIssues={loadAllIssuesForExport}
+          />
           <Link className="btn-secondary" to={projectId ? `/projects/${projectId}/gantt` : '/gantt'}>
             Open Gantt
           </Link>
-          <button className="btn-primary" type="button" onClick={openCreateModal}>
-            Tambah Task
-          </button>
+          {canCreateTask ? (
+            <button className="btn-primary" type="button" onClick={openCreateModal}>
+              Tambah Task
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -202,8 +274,13 @@ function TaskListPage({
       ) : null}
 
       <TaskBulkToolbar
+        enabled={canExecuteBulkOperation}
         buckets={buckets}
         selectedTaskIds={Array.from(selectedTaskIds)}
+        selectedTasks={selectedTasks}
+        sprints={sprints}
+        sprintsLoading={sprintsLoading}
+        users={users}
         onChanged={refreshTasks}
         onCleared={() => setSelectedTaskIds(new Set())}
       />
@@ -211,9 +288,14 @@ function TaskListPage({
       {loading ? <div className="card p-6 text-text-muted">Loading tasks...</div> : null}
       {error ? <div className="card p-6 text-danger">{error}</div> : null}
       <TaskTree
+        canApproveTask={canApproveTask}
+        canCreateTask={canCreateTask}
+        canDeleteTask={canDeleteTask}
+        canRealizeTask={canRealizeTask}
+        canUpdateTask={canUpdateTask}
         tasks={tasks}
         selectedTaskIds={selectedTaskIds}
-        onSelectionChange={toggleTaskSelection}
+        onSelectionChange={canExecuteBulkOperation ? toggleTaskSelection : undefined}
         onApprove={handleApprove}
         onDelete={handleDelete}
         onEdit={(task) => {

@@ -121,7 +121,7 @@ const updateWorkflowStateController = asyncHandler(async (req, res) => {
  * Delete a workflow state
  */
 const deleteWorkflowStateController = asyncHandler(async (req, res) => {
-  await deleteWorkflowState(req.params.stateId);
+  await deleteWorkflowState(req.params.stateId, getRequestActivityContext(req));
   sendSuccess(res, null, 'State deleted successfully.');
 });
 
@@ -145,7 +145,7 @@ const createWorkflowTransitionController = asyncHandler(async (req, res) => {
  * Update a workflow transition
  */
 const updateWorkflowTransitionController = asyncHandler(async (req, res) => {
-  const transition = await updateWorkflowTransition(req.params.transitionId, req.body);
+  const transition = await updateWorkflowTransition(req.params.transitionId, req.body, getRequestActivityContext(req));
   sendSuccess(res, transition, 'Transition updated successfully.');
 });
 
@@ -153,7 +153,7 @@ const updateWorkflowTransitionController = asyncHandler(async (req, res) => {
  * Delete a workflow transition
  */
 const deleteWorkflowTransitionController = asyncHandler(async (req, res) => {
-  await deleteWorkflowTransition(req.params.transitionId);
+  await deleteWorkflowTransition(req.params.transitionId, getRequestActivityContext(req));
   sendSuccess(res, null, 'Transition deleted successfully.');
 });
 

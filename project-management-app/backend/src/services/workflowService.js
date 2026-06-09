@@ -1,5 +1,8 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { triggerAutomation } = require('./automationService');
+const { emitDashboardMetricsUpdated } = require('./dashboardMetricsService');
+const { emitToProject, emitToProjectOrWorkspace, emitToTask } = require('./realtimeService');
 
 // Workflow state categories
 const STATE_CATEGORIES = {
@@ -26,6 +29,76 @@ const DEFAULT_WORKFLOW_TRANSITIONS = [
   { name: 'Complete', from_state: 'In Progress', to_state: 'Done', sort_order: 5 },
   { name: 'Stop Progress', from_state: 'In Progress', to_state: 'To Do', sort_order: 6 },
 ];
+
+const getActorUserId = (context = {}) => context.actor_user_id || context.user_id || null;
+
+const emitWorkflowConfigRealtimeEvent = async (eventName, workflowId, context = {}, metadata = {}) => {
+  if (!workflowId) {
+    return;
+  }
+
+  const workflow = await getWorkflowById(workflowId);
+  const projectId = workflow?.project_id ? Number(workflow.project_id) : null;
+  const payload = {
+    actor_user_id: getActorUserId(context),
+    event: eventName,
+    metadata,
+    project_id: projectId,
+    workflow,
+    workflow_id: Number(workflowId),
+  };
+
+  emitToProjectOrWorkspace(projectId, eventName, payload);
+  emitToProjectOrWorkspace(projectId, 'workflow.changed', payload);
+};
+
+const emitDeletedWorkflowRealtimeEvent = (eventName, workflow, context = {}, metadata = {}) => {
+  const projectId = workflow?.project_id ? Number(workflow.project_id) : null;
+  const payload = {
+    actor_user_id: getActorUserId(context),
+    event: eventName,
+    metadata,
+    project_id: projectId,
+    workflow,
+    workflow_id: workflow?.id ? Number(workflow.id) : metadata.workflow_id || null,
+  };
+
+  emitToProjectOrWorkspace(projectId, eventName, payload);
+  emitToProjectOrWorkspace(projectId, 'workflow.changed', payload);
+};
+
+const emitWorkflowIssueTransitionEvent = (issue, transition, context = {}, metadata = {}) => {
+  if (!issue?.id || !issue.project_id) {
+    return;
+  }
+
+  const payload = {
+    actor_user_id: getActorUserId(context),
+    event: 'workflow.issue.transitioned',
+    issue,
+    metadata,
+    project_id: Number(issue.project_id),
+    task_id: Number(issue.id),
+    transition,
+  };
+
+  emitToProject(issue.project_id, 'workflow.issue.transitioned', payload);
+  emitToProject(issue.project_id, 'task.updated', {
+    ...payload,
+    event: 'task.updated',
+    task: issue,
+  });
+  emitToTask(issue.id, 'task.updated', {
+    ...payload,
+    event: 'task.updated',
+    task: issue,
+  });
+  emitDashboardMetricsUpdated(issue.project_id, {
+    event: 'workflow.issue.transitioned',
+    task_id: Number(issue.id),
+    transition_id: transition?.id ? Number(transition.id) : null,
+  });
+};
 
 /**
  * Get all workflows for a project (including global workflows)
@@ -174,6 +247,60 @@ const getWorkflowTransitions = async (workflowId) => {
   return result.rows;
 };
 
+const getWorkflowTransitionById = async (transitionId) => {
+  const result = await query(
+    `
+    SELECT
+      id,
+      workflow_id,
+      name,
+      from_state_id,
+      to_state_id,
+      conditions,
+      validators,
+      post_functions,
+      screen_id,
+      sort_order,
+      created_at,
+      updated_at
+    FROM workflow_transitions
+    WHERE id = $1
+    `,
+    [transitionId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const canTransitionIssue = (issue, transition, conditionResult = { passed: true }) => {
+  if (!issue || !transition) {
+    return false;
+  }
+
+  return Number(issue.workflow_state_id) === Number(transition.from_state_id) && Boolean(conditionResult.passed);
+};
+
+const ensureTransitionStatePairIsValid = async (workflowId, fromStateId, toStateId) => {
+  const normalizedWorkflowId = Number(workflowId);
+  const normalizedFromStateId = Number(fromStateId);
+  const normalizedToStateId = Number(toStateId);
+
+  if (normalizedFromStateId === normalizedToStateId) {
+    throw new Error('Transition source and target states must be different.');
+  }
+
+  const fromState = await getWorkflowStateById(normalizedFromStateId);
+  const toState = await getWorkflowStateById(normalizedToStateId);
+
+  if (!fromState || Number(fromState.workflow_id) !== normalizedWorkflowId) {
+    throw new Error('Invalid from_state_id.');
+  }
+
+  if (!toState || Number(toState.workflow_id) !== normalizedWorkflowId) {
+    throw new Error('Invalid to_state_id.');
+  }
+};
+
 /**
  * Get available transitions for an issue from its current state
  * @param {number} issueId - Issue/Task ID
@@ -254,6 +381,10 @@ const createWorkflow = async (data, context = {}) => {
     user_agent: context.user_agent,
   });
 
+  await emitWorkflowConfigRealtimeEvent('workflow.created', workflow.id, context, {
+    action: 'workflow.create',
+  });
+
   return workflow;
 };
 
@@ -300,6 +431,11 @@ const updateWorkflow = async (id, data, context = {}) => {
     user_agent: context.user_agent,
   });
 
+  await emitWorkflowConfigRealtimeEvent('workflow.updated', workflow.id, context, {
+    action: 'workflow.update',
+    changed_fields: Object.keys(data || {}),
+  });
+
   return workflow;
 };
 
@@ -337,6 +473,11 @@ const deleteWorkflow = async (id, context = {}) => {
     metadata: { name: workflow.name },
     ip_address: context.ip_address,
     user_agent: context.user_agent,
+  });
+
+  emitDeletedWorkflowRealtimeEvent('workflow.deleted', workflow, context, {
+    action: 'workflow.delete',
+    workflow_id: Number(id),
   });
 };
 
@@ -382,7 +523,13 @@ const createWorkflowState = async (workflowId, data, context = {}) => {
     [workflowId, name, category, color, sort_order, is_initial, is_final]
   );
 
-  return result.rows[0];
+  const state = result.rows[0];
+  await emitWorkflowConfigRealtimeEvent('workflow.state.created', workflowId, context, {
+    action: 'workflow.state.create',
+    state,
+  });
+
+  return state;
 };
 
 /**
@@ -425,7 +572,14 @@ const updateWorkflowState = async (stateId, data, context = {}) => {
     [name, category, color, sort_order, is_initial, is_final, stateId]
   );
 
-  return result.rows[0];
+  const state = result.rows[0];
+  await emitWorkflowConfigRealtimeEvent('workflow.state.updated', state.workflow_id, context, {
+    action: 'workflow.state.update',
+    changed_fields: Object.keys(data || {}),
+    state,
+  });
+
+  return state;
 };
 
 /**
@@ -433,7 +587,7 @@ const updateWorkflowState = async (stateId, data, context = {}) => {
  * @param {number} stateId - State ID
  * @returns {Promise<void>}
  */
-const deleteWorkflowState = async (stateId) => {
+const deleteWorkflowState = async (stateId, context = {}) => {
   const state = await getWorkflowStateById(stateId);
 
   if (!state) {
@@ -461,6 +615,12 @@ const deleteWorkflowState = async (stateId) => {
   }
 
   await query('DELETE FROM workflow_states WHERE id = $1', [stateId]);
+
+  await emitWorkflowConfigRealtimeEvent('workflow.state.deleted', state.workflow_id, context, {
+    action: 'workflow.state.delete',
+    state,
+    state_id: Number(stateId),
+  });
 };
 
 /**
@@ -470,6 +630,7 @@ const deleteWorkflowState = async (stateId) => {
  * @returns {Promise<Object>} Created transition
  */
 const createWorkflowTransition = async (workflowId, data, context = {}) => {
+  const normalizedWorkflowId = Number(workflowId);
   const {
     name,
     from_state_id,
@@ -481,17 +642,7 @@ const createWorkflowTransition = async (workflowId, data, context = {}) => {
     sort_order = 0,
   } = data;
 
-  // Validate from and to states exist and belong to this workflow
-  const fromState = await getWorkflowStateById(from_state_id);
-  const toState = await getWorkflowStateById(to_state_id);
-
-  if (!fromState || fromState.workflow_id !== workflowId) {
-    throw new Error('Invalid from_state_id.');
-  }
-
-  if (!toState || toState.workflow_id !== workflowId) {
-    throw new Error('Invalid to_state_id.');
-  }
+  await ensureTransitionStatePairIsValid(normalizedWorkflowId, from_state_id, to_state_id);
 
   const result = await query(
     `
@@ -509,10 +660,16 @@ const createWorkflowTransition = async (workflowId, data, context = {}) => {
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING *
     `,
-    [workflowId, name, from_state_id, to_state_id, JSON.stringify(conditions), JSON.stringify(validators), JSON.stringify(post_functions), screen_id, sort_order]
+    [normalizedWorkflowId, name, from_state_id, to_state_id, JSON.stringify(conditions), JSON.stringify(validators), JSON.stringify(post_functions), screen_id, sort_order]
   );
 
-  return result.rows[0];
+  const transition = result.rows[0];
+  await emitWorkflowConfigRealtimeEvent('workflow.transition.created', normalizedWorkflowId, context, {
+    action: 'workflow.transition.create',
+    transition,
+  });
+
+  return transition;
 };
 
 /**
@@ -521,7 +678,17 @@ const createWorkflowTransition = async (workflowId, data, context = {}) => {
  * @param {Object} data - Updated data
  * @returns {Promise<Object>} Updated transition
  */
-const updateWorkflowTransition = async (transitionId, data) => {
+const updateWorkflowTransition = async (transitionId, data, context = {}) => {
+  const currentTransition = await getWorkflowTransitionById(transitionId);
+
+  if (!currentTransition) {
+    throw new Error('Transition not found.');
+  }
+
+  const nextFromStateId = data.from_state_id ?? currentTransition.from_state_id;
+  const nextToStateId = data.to_state_id ?? currentTransition.to_state_id;
+  await ensureTransitionStatePairIsValid(currentTransition.workflow_id, nextFromStateId, nextToStateId);
+
   const result = await query(
     `
     UPDATE workflow_transitions
@@ -551,11 +718,14 @@ const updateWorkflowTransition = async (transitionId, data) => {
     ]
   );
 
-  if (!result.rows[0]) {
-    throw new Error('Transition not found.');
-  }
+  const transition = result.rows[0];
+  await emitWorkflowConfigRealtimeEvent('workflow.transition.updated', transition.workflow_id, context, {
+    action: 'workflow.transition.update',
+    changed_fields: Object.keys(data || {}),
+    transition,
+  });
 
-  return result.rows[0];
+  return transition;
 };
 
 /**
@@ -563,12 +733,24 @@ const updateWorkflowTransition = async (transitionId, data) => {
  * @param {number} transitionId - Transition ID
  * @returns {Promise<void>}
  */
-const deleteWorkflowTransition = async (transitionId) => {
+const deleteWorkflowTransition = async (transitionId, context = {}) => {
+  const transition = await getWorkflowTransitionById(transitionId);
+
+  if (!transition) {
+    throw new Error('Transition not found.');
+  }
+
   const result = await query('DELETE FROM workflow_transitions WHERE id = $1 RETURNING id', [transitionId]);
 
   if (!result.rows[0]) {
     throw new Error('Transition not found.');
   }
+
+  await emitWorkflowConfigRealtimeEvent('workflow.transition.deleted', transition.workflow_id, context, {
+    action: 'workflow.transition.delete',
+    transition,
+    transition_id: Number(transitionId),
+  });
 };
 
 /**
@@ -878,13 +1060,13 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
   }
 
   // Validate transition is from current state (Req 2.4)
-  if (issue.workflow_state_id !== transition.from_state_id) {
+  if (!canTransitionIssue(issue, transition)) {
     throw new Error(`Invalid transition: issue is not in "${transition.from_state_name}" state.`);
   }
 
   // Evaluate conditions
   const conditionResult = await evaluateTransitionConditions(transition, issue, context);
-  if (!conditionResult.passed) {
+  if (!canTransitionIssue(issue, transition, conditionResult)) {
     throw new Error(conditionResult.message);
   }
 
@@ -924,6 +1106,8 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     object_id: issueId,
     description: `Transitioned from "${transition.from_state_name}" to "${transition.to_state_name}".`,
     metadata: {
+      actor_role: context.user_role || null,
+      actor_user_id: context.actor_user_id || null,
       transition_id: transitionId,
       transition_name: transition.name,
       from_state: transition.from_state_name,
@@ -943,7 +1127,25 @@ const transitionIssue = async (issueId, transitionId, payload = {}, context = {}
     [issueId]
   );
 
-  return updatedIssueResult.rows[0];
+  const updatedIssue = updatedIssueResult.rows[0];
+
+  emitWorkflowIssueTransitionEvent(updatedIssue, transition, context, {
+    action: 'workflow.transition',
+    from_state_id: transition.from_state_id,
+    to_state_id: transition.to_state_id,
+  });
+
+  try {
+    await triggerAutomation('issue_transitioned', issueId, {
+      issue: updatedIssue,
+      previous_issue: issue,
+      transition,
+    }, context);
+  } catch (error) {
+    console.error(`Automation trigger failed for issue_transitioned: ${error.message}`);
+  }
+
+  return updatedIssue;
 };
 
 /**
@@ -964,18 +1166,22 @@ const createDefaultWorkflow = async (projectId, context = {}) => {
   // Create states
   const stateMap = {};
   for (const stateData of DEFAULT_WORKFLOW_STATES) {
-    const state = await createWorkflowState(workflow.id, stateData);
+    const state = await createWorkflowState(workflow.id, stateData, context);
     stateMap[state.name] = state.id;
   }
 
   // Create transitions
   for (const transitionData of DEFAULT_WORKFLOW_TRANSITIONS) {
-    await createWorkflowTransition(workflow.id, {
-      name: transitionData.name,
-      from_state_id: stateMap[transitionData.from_state],
-      to_state_id: stateMap[transitionData.to_state],
-      sort_order: transitionData.sort_order,
-    });
+    await createWorkflowTransition(
+      workflow.id,
+      {
+        name: transitionData.name,
+        from_state_id: stateMap[transitionData.from_state],
+        to_state_id: stateMap[transitionData.to_state],
+        sort_order: transitionData.sort_order,
+      },
+      context,
+    );
   }
 
   return workflow;
@@ -986,6 +1192,7 @@ module.exports = {
   createWorkflow,
   createWorkflowState,
   createWorkflowTransition,
+  canTransitionIssue,
   deleteWorkflow,
   deleteWorkflowState,
   deleteWorkflowTransition,

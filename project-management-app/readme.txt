@@ -4654,3 +4654,1129 @@ Known risks:
 - Windows Firewall, antivirus firewall, router isolation, or a changed local IP can block access.
 - If the PC/server, PostgreSQL, backend, or frontend dev server stops, the LAN link stops working.
 - For stable internal usage, reserve a fixed local IP or DHCP reservation for this machine.
+
+
+2026-05-28 - Calibrate JIRA parity task list after business-unit gap analysis
+Files changed:
+  .kiro/specs/jira-parity-development/tasks.md
+  readme.txt
+
+What changed:
+- Reviewed official Atlassian Jira documentation for work types, workflows, backlog, sprint planning, versions/releases, JQL fields, reporting, permissions, and custom field types.
+- Added a new "Gap Analysis Baseline - 2026-05-28" section to the JIRA parity implementation task list.
+- Documented the JIRA-style business-unit flow from upstream to downstream:
+  business intake/governance, work classification, prioritization/planning, execution/collaboration, release/delivery, monitoring/control, and continuous improvement.
+- Documented current application fit:
+  strong existing Planner/Gantt foundation, partial Jira foundation, partial agile services, migration drift, release schema mismatch, and missing frontend/API layers for most Jira parity features.
+- Added task status calibration rules:
+  [x] means implemented and wired, [~] means partial but not end-to-end, [ ] means not implemented or only migration/table exists.
+- Added a new pending task `1.3 Align database migration state with service expectations`.
+- Updated Phase 1 status from complete to partial because schema/migration state is not fully aligned with service expectations.
+- Updated Phase 2 parent statuses to partial where service layer exists but controllers/routes/UI are missing.
+- Corrected Phase 2 controller/route tasks for sprint, epic, backlog, and version from partial to pending because the files are not present.
+- Corrected Phase 3 and later tasks that were marked partial even though no service/controller/routes exist yet, keeping only truly partial areas such as existing notifications, nested task hierarchy, bulk task update, and realtime foundations.
+- Added gap notes to issue linking, component, time tracking, watcher, saved filter/JQL, automation, bulk operation, and realtime tasks.
+
+Reason:
+- The previous task list mixed planned work, migration-only work, service-only work, and actual end-to-end features.
+- The user requested a JIRA business-unit learning pass, gap analysis, and task list update.
+- The task list now reflects the real implementation state and gives a safer next-work order before frontend JIRA parity development continues.
+
+Behavior impact:
+- Documentation/task planning only.
+- No runtime backend, frontend, database schema, or API behavior changed.
+- Future implementation should prioritize migration alignment, Phase 2 API exposure, task contract integration, and backlog/sprint UI before advanced reporting and automation.
+
+Verification:
+- Reviewed local repository structure and current services/controllers/routes.
+- Checked local PostgreSQL database `project_management` and confirmed 41 tables exist.
+- Confirmed local database is missing tables that migration files define:
+  components, issue_components, issue_links, time_logs, issue_fix_versions, issue_affects_versions.
+- Confirmed local `tasks` table has Jira parity columns:
+  issue_type_id, issue_key, story_points, epic_id, sprint_id, workflow_state_id, backlog_order, fix_versions, affects_versions, components.
+- Confirmed sprint, epic, backlog, story point, and version service files exist.
+- Confirmed sprint, epic, backlog, version, issue link, component, time tracking, watcher, JQL, and automation controller/route files are not present.
+- Ran backend tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran frontend build:
+  cd frontend
+  npm run build
+  Result: success, with existing Vite chunk-size warning.
+
+Known risks:
+- The task list is now more conservative than before; some migration-only work may need to be reclassified again after migrations are actually applied and smoke-tested.
+- `versionService.js` may fail until `issue_fix_versions`, `issue_affects_versions`, and release status schema alignment are handled.
+- The gap analysis is based on current local code/database state on 2026-05-28 and should be refreshed after future commits or migrations.
+
+
+2026-05-28 - Complete JIRA parity database migration alignment task 1.3
+Files changed:
+  .kiro/specs/jira-parity-development/tasks.md
+  backend/run-migrations.js
+  backend/src/database/schema.sql
+  backend/src/database/migrations/20260523_issue_links.sql
+  backend/src/database/migrations/20260523_versions_releases.sql
+  backend/src/database/migrations/20260601_jira_parity_foundation.sql
+  readme.txt
+
+What changed:
+- Expanded `backend/run-migrations.js` so all required JIRA parity migrations run in dependency order instead of only a subset.
+- Added the missing JIRA parity schema objects to `schema.sql`, including components, issue components, issue links, issue watchers, time logs, release/version junction tables, project key sequences, workflow tables, issue types, sprints, epics, releases, roadmaps, automation tables, reports, and saved filters.
+- Added `projects.project_key`, `tasks.backlog_order`, `tasks.original_estimate_minutes`, and `tasks.remaining_estimate_minutes` to the canonical schema.
+- Made release migrations idempotent for older databases by adding/backfilling `releases.status` and preserving the legacy `releases.released` boolean.
+- Fixed the issue link migration so `issue_links.updated_at` exists before the updated-at trigger is created.
+- Marked task `1.3 Align database migration state with service expectations` as complete and updated related gap notes.
+
+Reason:
+- The local database and canonical schema were behind service expectations for version management, issue links, components, and time tracking.
+- `versionService.js` expects release status and issue version junction tables.
+- Future JIRA parity API/UI work needs a stable database foundation before controllers, routes, and frontend flows are added.
+
+Behavior impact:
+- Local PostgreSQL database `project_management` was migrated from 41 to 47 tables.
+- Previously missing tables now exist: `components`, `issue_components`, `issue_links`, `time_logs`, `issue_fix_versions`, and `issue_affects_versions`.
+- `releases.status` now exists and supports `unreleased`, `released`, and `archived`.
+- No frontend behavior was intentionally changed.
+
+Verification:
+- Ran JIRA parity migration runner:
+  node backend/run-migrations.js
+  Result: 16 migrations succeeded, 0 failed.
+- Verified local database has no missing required JIRA parity tables or columns for task 1.3.
+- Created a temporary PostgreSQL database, applied `schema.sql`, then ran the migration runner against it.
+  Result: schema created 47 tables; migration runner succeeded with 16 migrations and 0 failures; temporary database was dropped afterward.
+- Ran backend tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran backend runtime syntax check excluding Jest test files:
+  Result: backend runtime JS syntax ok.
+- Ran migration runner syntax check:
+  node --check backend/run-migrations.js
+  Result: success.
+- Ran frontend build:
+  cd frontend
+  npm run build
+  Result: success, with existing Vite chunk-size warning.
+
+Known risks:
+- Phase 2 JIRA services for sprint, epic, backlog, and version still need controllers/routes before they are usable from the app.
+- Issue links, components, watchers, and time tracking now have database foundations but still need service/controller/route/frontend implementation.
+- `verifyApplicationSchema()` still validates only production-critical core tables; JIRA parity tables should be added there later only when the app requires them at startup.
+
+
+2026-05-28 - Complete JIRA parity Phase 2 API exposure and Phase 3 backend APIs
+Files changed:
+  .kiro/specs/jira-parity-development/tasks.md
+  activity/activity-2026-05-26.md
+  backend/src/server.js
+  backend/src/services/permissionService.js
+  backend/src/utils/responseUtils.js
+  backend/src/services/backlogService.js
+  backend/src/services/sprintService.js
+  backend/src/services/taskService.js
+  backend/src/services/commentService.js
+  backend/src/services/workflowService.js
+  backend/src/services/versionService.js
+  backend/src/services/issueLinkService.js
+  backend/src/services/componentService.js
+  backend/src/services/timeTrackingService.js
+  backend/src/services/watcherService.js
+  backend/src/services/jqlService.js
+  backend/src/services/automationService.js
+  backend/src/controllers/backlogController.js
+  backend/src/controllers/sprintController.js
+  backend/src/controllers/epicController.js
+  backend/src/controllers/versionController.js
+  backend/src/controllers/issueLinkController.js
+  backend/src/controllers/componentController.js
+  backend/src/controllers/timeTrackingController.js
+  backend/src/controllers/watcherController.js
+  backend/src/controllers/jqlController.js
+  backend/src/controllers/automationController.js
+  backend/src/routes/backlogRoutes.js
+  backend/src/routes/sprintRoutes.js
+  backend/src/routes/epicRoutes.js
+  backend/src/routes/versionRoutes.js
+  backend/src/routes/issueLinkRoutes.js
+  backend/src/routes/componentRoutes.js
+  backend/src/routes/timeTrackingRoutes.js
+  backend/src/routes/watcherRoutes.js
+  backend/src/routes/jqlRoutes.js
+  backend/src/routes/automationRoutes.js
+  readme.txt
+
+What changed:
+- Exposed Phase 2 agile services through authenticated API routes:
+  `/api/sprints`, `/api/epics`, `/api/backlog`, and `/api/versions`.
+- Completed Phase 3 backend/API implementation:
+  issue links, components, time tracking, watchers, JQL/saved filters, and automation.
+- Issue links now support reciprocal link creation, duplicate prevention, type/status filtering, explicit link deletion, and activity logging.
+- Components now support CRUD, multiple components per issue, default-assignee auto assignment, issue component replacement, component metrics, component tags in task responses, and project membership visibility checks.
+- Time tracking now supports original/remaining estimates, work logs, minute/hour/day input, auto-reducing remaining estimates, work log reports, activity logs, watcher notifications, and automation triggers.
+- Watchers now support add/remove/list, bulk add, automatic watching on create/comment/assign/mention, project-user watcher cleanup, and notification delivery for issue updates.
+- JQL now supports whitelisted field parsing, AND/OR/NOT, grouping, equals/not-equals/in/not-in/greater/less/contains/is-empty operators, ORDER BY, pagination, standard issue fields, components, labels, versions, and custom fields through `cf[Name]`.
+- Saved filters now support CRUD, shared filters, favorites, and execution.
+- Automation now supports rule CRUD, enable/disable, trigger matching, condition evaluation, action execution, execution logs, and trigger hooks for issue create/update, workflow transition, comment-added, and time tracking updates.
+- Permission fallbacks were extended for sprint, backlog, epic, version, issue links, components, time logs, watchers, JQL, saved filters, and automation.
+- Local app runtime logs are separated so error logs live in `errorlog/`.
+
+Reason:
+- The task plan required continuing JIRA parity development until Phase 3 was complete.
+- Phase 2 services existed but needed API exposure before higher-level features could use them.
+- Phase 3 features needed backend contracts before frontend issue detail, backlog/sprint, JQL, automation, and reporting UI work can be built safely.
+
+Behavior impact:
+- Backend now exposes the Phase 2 and Phase 3 JIRA parity APIs.
+- Existing task behavior is preserved, with additional fields in task responses for components and time tracking.
+- Task changes, comments, time logs, and workflow transitions can now notify watchers and trigger automation rules.
+- Automation actions can update fields, transition status/state, send notifications, create issues, add comments, and assign users.
+- Frontend UI for these new JIRA parity features is still not implemented, so access is currently through API routes.
+
+Database impact:
+- No new database migration was required beyond the existing JIRA parity migration alignment.
+- New services use existing tables from the aligned schema:
+  `issue_links`, `components`, `issue_components`, `time_logs`, `issue_watchers`, `saved_filters`, `automation_rules`, and `automation_logs`.
+
+Verification:
+- Ran backend syntax checks for the new/touched Phase 3 service, controller, route, and integration files.
+- Ran runtime import checks for Phase 3 routes and services.
+- Ran backend tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran migration runner:
+  cd backend
+  node run-migrations.js
+  Result: 16 migrations succeeded, 0 failed.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+
+2026-06-09 11:50 +07:00 - Lock Add Subtask flow to Subtask issue type
+
+Issue:
+- The `Add subtask` action should represent a real Jira-style subtask creation flow.
+- The previous form still exposed broader child issue type options in some parent contexts, which made the subtask action feel like a generic child-task creation flow.
+
+Changes made:
+- Updated `frontend/src/components/task/TaskFormModal.jsx`.
+- When the form is opened from an `Add subtask` action, issue type options are restricted to valid `Subtask` only.
+- The issue type field is locked in subtask creation mode because the action already defines the intended structure.
+- Project, parent task, bucket, inherited epic, PIC, lead, and default start date continue to follow the selected parent task as before.
+- Updated `frontend/src/components/task/TaskTree.jsx` so the `Add subtask` menu item only appears for issue types that can validly have subtasks: Story, Task, and Bug.
+- Updated `frontend/src/components/task/TaskDetailModal.jsx` so the detail modal `Add Subtask` button and stale submit handler use the same rule.
+
+Technical impact:
+- Backend hierarchy validation remains unchanged and remains the source of truth.
+- The frontend subtask action now maps directly to `parent_task_id = parent.id` plus `issue_type_id = Subtask`.
+- Invalid parent types such as Epic or Subtask no longer offer the `Add subtask` action in normal UI paths.
+
+Business process impact:
+- Users creating a subtask from a task row/detail do not need to manually choose the issue type.
+- The app now separates "create a Subtask under this task" from broader Jira child issue planning concepts.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+
+2026-06-09 11:43 +07:00 - Auto-correct invalid child issue type selection
+
+Issue:
+- After parent-based issue type filtering was added, the form could still hold a previously selected issue type value such as `Task` while the valid option list for a `Task` parent only allowed `Subtask`.
+- This produced inline validation text `Issue type ini tidak valid untuk parent Task ...` even though the dropdown was intended to guide the user automatically.
+
+Changes made:
+- Updated `frontend/src/components/task/TaskFormModal.jsx`.
+- The form now detects when the selected issue type is no longer valid for the current parent.
+- When valid issue type options are available, the form automatically replaces the invalid value with the preferred valid default, such as `Subtask` under a `Task` parent.
+- Existing issue type error text is cleared after the auto-correction.
+
+Technical impact:
+- Backend hierarchy validation remains unchanged.
+- Parent-based filtering now handles both empty selections and stale invalid selections.
+- The task creation payload continues to use the same `issue_type_id` field.
+
+Business process impact:
+- Users adding a child under `Trial & ERROR` or another `Task` parent should see/select `Subtask` without being stuck on the invalid `Task` value.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Restarted backend dev server and confirmed:
+  http://localhost:5000/ returns HTTP 200 JSON health response.
+- Confirmed frontend dev server still responds:
+  http://localhost:5173/ returns HTTP 200.
+- Confirmed current error logs are empty:
+  errorlog/backend.err.log
+  errorlog/frontend.err.log
+
+Known risks:
+- Phase 3 is backend/API complete only. Frontend screens and controls for issue links, components, time tracking, watchers, JQL, and automation still need to be built in later phases.
+- Optional unit/property tests marked with `*` in `tasks.md` remain unimplemented.
+- JQL intentionally supports a safe subset of Jira syntax using whitelisted fields and parameterized SQL; unsupported Jira-specific syntax should be added incrementally.
+- Automation action execution is intentionally conservative and field updates are restricted by whitelist.
+
+
+2026-05-28 - Continue JIRA parity Phase 4 backend development
+Files changed:
+  .kiro/specs/jira-parity-development/tasks.md
+  activity/activity-2026-05-26.md
+  backend/package.json
+  backend/package-lock.json
+  backend/run-migrations.js
+  backend/src/database/schema.sql
+  backend/src/database/migrations/20260602_phase4_reporting_templates.sql
+  backend/src/server.js
+  backend/src/services/taskService.js
+  backend/src/services/permissionService.js
+  backend/src/services/velocityService.js
+  backend/src/services/burndownService.js
+  backend/src/services/reportService.js
+  backend/src/services/dashboardMetricsService.js
+  backend/src/services/templateService.js
+  backend/src/services/prioritySchemeService.js
+  backend/src/services/hierarchyService.js
+  backend/src/controllers/velocityController.js
+  backend/src/controllers/burndownController.js
+  backend/src/controllers/reportController.js
+  backend/src/controllers/dashboardMetricsController.js
+  backend/src/controllers/templateController.js
+  backend/src/controllers/prioritySchemeController.js
+  backend/src/controllers/hierarchyController.js
+  backend/src/routes/velocityRoutes.js
+  backend/src/routes/burndownRoutes.js
+  backend/src/routes/reportRoutes.js
+  backend/src/routes/dashboardMetricsRoutes.js
+  backend/src/routes/templateRoutes.js
+  backend/src/routes/prioritySchemeRoutes.js
+  backend/src/routes/hierarchyRoutes.js
+  readme.txt
+
+What changed:
+- Added Phase 4 schema/migration support:
+  `velocity_history`, `issue_templates`, `priority_schemes`, `project_priority_schemes`, and `dashboard_preferences`.
+- Added velocity tracking API:
+  `/api/velocity`
+  Calculates completed story points per sprint, stores velocity history, averages over 3/5/10 sprints, and returns capacity recommendation.
+- Added burndown API:
+  `/api/burndown`
+  Generates ideal vs actual daily remaining work by story points or issue count and flags days where remaining work increased.
+- Added advanced reports API:
+  `/api/reports`
+  Supports issue statistics, time tracking, velocity, burndown, cumulative flow, and custom JQL reports.
+- Added report export:
+  CSV, Excel-compatible XLS via native SpreadsheetML, and PDF via `pdfkit`.
+- Added dashboard metrics API:
+  `/api/dashboard-metrics`
+  Supports cycle time, lead time, issue aging, workload distribution, sprint health indicators, and per-user dashboard preferences.
+- Added issue template API:
+  `/api/templates`
+  Supports template CRUD, shared templates, predefined fields, subtasks, checklists, preview, and apply-to-create.
+- Added priority scheme API:
+  `/api/priority-schemes`
+  Supports custom priority levels, default priority scheme, project assignment, and scheme-based task priority validation.
+- Added hierarchy API:
+  `/api/hierarchy`
+  Supports hierarchy retrieval, subtask creation, and issue type conversion.
+- Extended task create/update contracts so Jira fields are persisted:
+  `issue_key`, `issue_type_id`, `story_points`, `epic_id`, `sprint_id`, `workflow_state_id`, `resolution`, `environment`, and `backlog_order`.
+- New tasks now get an issue key through `issueKeyService` when no issue key is provided.
+- Subtasks now enforce parent requirements for Subtask issue type and inherit parent epic/sprint when not explicitly set.
+- Task realtime updates now emit dashboard metric invalidation events for project dashboards.
+- Replaced the old fixed database priority check with scheme-based validation while preserving the default `Low`, `Medium`, `High`, and `Urgent` priorities.
+- Added backend dependency:
+  `pdfkit`
+
+Reason:
+- The user requested continuing development into Phase 4.
+- Phase 4 requires analytics/reporting backend, reusable issue templates, priority scheme configuration, and stronger hierarchy/subtask handling before frontend Jira parity screens are built.
+
+Behavior impact:
+- Existing tasks continue to work with old priorities through the seeded default priority scheme.
+- New custom priority names can be accepted only when they exist in the assigned project priority scheme.
+- New tasks now receive generated Jira-style issue keys if the client does not provide one.
+- Report exports can be downloaded through API routes.
+- Phase 4 is still backend/API only; frontend screens for these features are not implemented yet.
+
+Database impact:
+- Added new migration:
+  `backend/src/database/migrations/20260602_phase4_reporting_templates.sql`
+- Migration runner now applies 17 Jira parity migrations.
+- Dropped the old `tasks_priority_allowed` constraint and replaced it with `tasks_priority_not_empty` so custom priority schemes can work.
+- Seeded a default priority scheme for backward compatibility.
+
+Verification:
+- Ran backend syntax checks for new Phase 4 services/controllers/routes and touched integrations.
+- Ran Phase 4 runtime import checks.
+- Ran report export smoke test for CSV, Excel-compatible XLS, and PDF.
+- Ran dashboard metrics smoke test.
+- Ran backend tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran migration runner:
+  cd backend
+  node run-migrations.js
+  Result: 17 migrations succeeded, 0 failed.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Ran dependency audit:
+  cd backend
+  npm audit --omit=dev
+  Result: 0 vulnerabilities.
+
+Known risks:
+- Phase 4 checkpoint remains partial because real SMTP/email scheduled report delivery is not implemented. Report schedule metadata is stored, but no email worker sends it yet.
+- Optional unit/property tests marked with `*` in `tasks.md` remain unimplemented.
+- Cumulative flow and burndown are calculated from current task state plus available timestamps; exact historical state reconstruction would require a dedicated issue history table.
+- Frontend UI for Phase 4 features still needs to be built in Phase 5.
+
+---
+
+2026-05-29 - Phase 5 Issue Type Management UI
+
+What changed:
+- Added frontend issue type API service:
+  `frontend/src/logic/services/issueTypeApi.js`
+- Added frontend issue type hooks:
+  `frontend/src/logic/hooks/useIssueTypes.js`
+  These follow the existing project hook pattern instead of adding React Query, because the current frontend does not use a query client.
+- Added reusable issue type badge:
+  `frontend/src/components/task/IssueTypeBadge.jsx`
+  It renders issue type icon, color, and name consistently across task surfaces.
+- Added issue type admin page:
+  `frontend/src/pages/IssueTypesPage.jsx`
+- Registered new route and navigation entry:
+  `/issue-types`
+- Added project/global issue type filtering, issue counts, and create/edit/delete operations for custom issue types.
+- Updated task create/edit form:
+  `TaskFormModal.jsx`
+  Issue type is now required, defaults to `Task` for normal issues, and defaults to `Subtask` when adding a child task if that type exists.
+- Updated Board, Task List, and Gantt views to show issue type badge and issue key:
+  `TaskCard.jsx`
+  `TaskTree.jsx`
+  `GanttTreeRow.jsx`
+
+Business process impact:
+- Work intake now captures Jira-style issue type from the frontend instead of leaving `issue_type_id` empty.
+- Users can maintain global issue types and project-specific custom issue types from an admin screen.
+- Board/List/Gantt users can identify Epic/Story/Task/Bug/Subtask visually without opening task detail.
+
+Technical impact:
+- No new dependency was added.
+- The frontend continues to use existing Axios service and local hook state conventions.
+- Existing backend issue type API contract is reused without changing payload shape.
+- Existing task create/update payloads are preserved and extended with `issue_type_id`.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Started local backend and frontend dev servers:
+  backend http://localhost:5000
+  frontend http://127.0.0.1:5173
+- Smoke-tested backend auth and issue type API:
+  POST /api/auth/login with superadmin@project-management.local returned a token.
+  GET /api/issue-types returned 5 issue types; first result was Epic.
+- Smoke-tested frontend route:
+  GET http://127.0.0.1:5173/issue-types returned HTTP 200 and the Vite app shell.
+
+Known risks:
+- This completes Phase 5 task 28 only. Workflow, sprint board, backlog, epic/roadmap, JQL, reports, automation, and import/export UIs remain pending.
+- In-app browser automation was unavailable in this Codex session, so visual browser verification was not completed. HTTP route/API smoke tests passed.
+
+---
+
+2026-05-29 - Phase 1-4 Diagnosis and Phase 5 Workflow Management UI
+
+Diagnosis of completed Phase 1-4 work:
+- Reviewed backend route/service wiring for Jira parity domains that Phase 5 depends on.
+- Ran backend Jest suite:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran migration runner against local PostgreSQL:
+  cd backend
+  node run-migrations.js
+  Result: 17 migrations succeeded, 0 failed.
+- Ran backend syntax check across 119 JS files.
+  Result: all checked files passed.
+- Ran frontend production build before Phase 5 changes.
+  Result: success, with the existing Vite chunk-size warning.
+
+Fixes from diagnosis:
+- Fixed workflow transition creation in `backend/src/services/workflowService.js`.
+- Normalized route param workflow IDs before comparing them with numeric database IDs.
+- Added backend validation that transition source and target states must be different.
+- Added backend validation that transition source and target states belong to the same workflow on transition create/update.
+
+What changed for Phase 5 task 29:
+- Added workflow API service:
+  `frontend/src/logic/services/workflowApi.js`
+- Added workflow hooks:
+  `frontend/src/logic/hooks/useWorkflows.js`
+- Added Workflow Designer page:
+  `frontend/src/pages/WorkflowDesignerPage.jsx`
+- Registered route and navigation:
+  `/workflows`
+- Added workflow list/detail, project/global scope filtering, workflow CRUD, default workflow creation, draggable state ordering, state CRUD, transition CRUD, JSON conditions/validators/post-functions editing, and workflow preview.
+- Updated task detail modal:
+  `frontend/src/components/task/TaskDetailModal.jsx`
+  It now displays current workflow state, loads available transitions, executes transitions through workflow API, refreshes task detail after transition, and opens a required-field modal when transition validators require fields.
+
+Business process impact:
+- Admin users can now configure Jira-style workflows from the frontend instead of relying only on backend APIs.
+- Issue execution can now move through configured workflow transitions from task detail.
+- Transition validators can request required field values during status movement, supporting process gates such as resolution or environment capture.
+
+Technical impact:
+- No new dependency was added.
+- Existing Axios/local-hook frontend pattern was reused.
+- Existing backend workflow API payload shape was preserved.
+- Transition integrity is now enforced in backend service logic, not only in frontend forms.
+
+Verification:
+- Backend tests passed:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Frontend production build passed:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Workflow API smoke test passed through local server:
+  POST /api/auth/login
+  POST /api/workflows
+  POST /api/workflows/:workflowId/states
+  POST /api/workflows/:workflowId/transitions
+  GET /api/workflows/:workflowId/details
+  Cleanup deleted the temporary transition, states, and workflow.
+- Frontend dev route responded:
+  GET http://localhost:5173/workflows
+  Result: HTTP 200.
+
+Known risks:
+- In-app Browser automation was unavailable in this Codex session (`agent.browsers.list()` returned no browsers), and Playwright/Puppeteer were not installed locally, so visual screenshot verification could not be completed.
+- Optional unit/property tests marked with `*` in `tasks.md` remain unimplemented.
+- Phase 5 now continues with Sprint Board UI task 30.
+
+---
+
+2026-05-29 - Phase 6 realtime Jira parity events
+
+What changed:
+- Completed Phase 6 task 40.1 for realtime coverage of Jira parity domains.
+- Updated backend Socket.IO room setup:
+  `backend/src/services/realtimeService.js`
+  Authenticated sockets now join a shared `workspace` room in addition to existing `user:<id>`, `department:<id>`, `project:<id>`, and `chat:<roomId>` rooms.
+- Added project-or-workspace event emission so project-specific changes go to `project:<id>` and global admin changes go to `workspace`.
+- Added realtime events for issue type changes:
+  `issue_type.created`
+  `issue_type.updated`
+  `issue_type.deleted`
+  `issue_type.changed`
+- Added realtime events for workflow configuration and issue transitions:
+  `workflow.created`
+  `workflow.updated`
+  `workflow.deleted`
+  `workflow.state.created`
+  `workflow.state.updated`
+  `workflow.state.deleted`
+  `workflow.transition.created`
+  `workflow.transition.updated`
+  `workflow.transition.deleted`
+  `workflow.changed`
+  `workflow.issue.transitioned`
+- Added realtime events for sprint lifecycle and sprint issue membership:
+  `sprint.created`
+  `sprint.updated`
+  `sprint.deleted`
+  `sprint.started`
+  `sprint.completed`
+  `sprint.issues.added`
+  `sprint.issues.removed`
+  `sprint.changed`
+- Added automation realtime events:
+  `automation.rule.created`
+  `automation.rule.updated`
+  `automation.rule.deleted`
+  `automation.execution.created`
+  `automation.changed`
+- Extended dashboard metric invalidation so task updates, workflow issue transitions, sprint changes, automation executions, and dashboard preference changes can notify connected clients through `dashboard.metrics.updated`.
+- Updated frontend realtime bridge:
+  `frontend/src/components/realtime/RealtimeBridge.jsx`
+  It now forwards the new Socket.IO events into browser `realtime:*` events.
+- Updated frontend hooks/pages to refresh from realtime events:
+  `frontend/src/logic/hooks/useIssueTypes.js`
+  `frontend/src/logic/hooks/useWorkflows.js`
+  `frontend/src/logic/hooks/useSprints.js`
+  `frontend/src/logic/hooks/useBacklog.js`
+  `frontend/src/logic/hooks/useTasks.js`
+  `frontend/src/pages/AutomationRulesPage.jsx`
+  `frontend/src/pages/DashboardPage.jsx`
+
+Business process impact:
+- Admin changes to issue types and workflows are now visible to other connected users without manual reload.
+- Sprint planning and sprint board users receive live refresh signals when sprint data or sprint membership changes.
+- Automation rule edits and automation execution logs refresh live for admin users.
+- Dashboard widgets can react to operational changes that affect progress, sprint health, workload, and automation-driven issue updates.
+
+Technical impact:
+- No new dependency was added.
+- Existing REST API response shapes and payload contracts were preserved.
+- Existing task/comment/notification/chat realtime behavior remains additive and unchanged.
+- Global admin metadata uses the workspace room; project-specific work uses project rooms.
+- Automation actions still execute through the existing service flow, while the new execution event lets affected frontend views refresh after automation-side issue mutations.
+
+Verification:
+- Ran backend syntax checks:
+  cd backend
+  node --check src/services/realtimeService.js
+  node --check src/services/issueTypeService.js
+  node --check src/services/sprintService.js
+  node --check src/services/workflowService.js
+  node --check src/services/automationService.js
+  node --check src/services/dashboardMetricsService.js
+  node --check src/controllers/workflowController.js
+  Result: all passed.
+- Ran backend tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 24 tests passed.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Checked local HTTP routes because the in-app browser target was unavailable:
+  GET http://127.0.0.1:5173/
+  GET http://127.0.0.1:5173/dashboard
+  GET http://127.0.0.1:5173/automation
+  GET http://127.0.0.1:5173/sprints
+  GET http://127.0.0.1:5173/backlog
+  GET http://127.0.0.1:5173/issue-types
+  GET http://127.0.0.1:5173/workflows
+  Result: all returned HTTP 200 from the Vite app shell.
+- Checked backend health:
+  GET http://127.0.0.1:5000/
+  Result: HTTP 200 with API running status.
+
+Known risks:
+- Socket.IO production scaling still needs sticky sessions or a shared Socket.IO adapter if the backend runs more than one Node process.
+- In-app browser automation was unavailable in this session, so visual responsive verification was not completed.
+
+---
+
+2026-05-29 - Phase 6 optimistic UI updates
+
+What changed:
+- Completed Phase 6 task 40.2 for optimistic UI updates.
+- Added shared sync status UI:
+  `frontend/src/components/shared/SyncStatusBadge.jsx`
+  It displays `Syncing`, `Synced`, and `Failed` states with consistent icon, color, and badge styling.
+- Updated task cards:
+  `frontend/src/components/task/TaskCard.jsx`
+  Cards can now show per-issue sync status without changing the persisted task model.
+- Updated project board movement:
+  `frontend/src/components/board/BoardView.jsx`
+  `frontend/src/components/board/BoardColumn.jsx`
+  Status and bucket drag actions now update local board placement immediately, show a sync badge, and restore the previous board state if `/api/tasks/:id/move` fails.
+- Updated sprint board workflow movement:
+  `frontend/src/pages/SprintBoardPage.jsx`
+  Dragging an issue between workflow columns now applies the target state immediately, runs the workflow transition or direct task update, syncs the server response back into the local board, and rolls back on errors.
+- Updated issue detail workflow transitions:
+  `frontend/src/components/task/TaskDetailModal.jsx`
+  Workflow transition buttons now show optimistic state changes in the modal, disable competing transitions while saving, and restore the previous issue state if the transition is rejected.
+- Updated backlog ordering and sprint assignment:
+  `frontend/src/pages/BacklogPage.jsx`
+  Reordering applies immediately with rollback. Moving selected backlog issues to a sprint removes them from the backlog immediately, restores them on failure, and updates local counts/story points while syncing.
+- Updated sprint planning drag-to-sprint:
+  `frontend/src/components/sprint/SprintPlanningModal.jsx`
+  Dragging a backlog issue into sprint scope updates backlog/sprint columns immediately, shows assignment sync status, and restores both columns if the backend rejects the move.
+- Updated task plan:
+  `.kiro/specs/jira-parity-development/tasks.md`
+  Task 40 and 40.2 are now marked complete with completion notes.
+
+Business process impact:
+- Users receive immediate feedback when moving issues through planning and execution boards instead of waiting for full API refreshes.
+- Failed moves no longer leave the UI in a misleading state; the previous issue placement/state is restored and the user sees an error toast.
+- Sprint planning feels closer to Jira-style issue movement while retaining authoritative backend validation for permissions, workflow rules, and sprint integrity.
+
+Technical impact:
+- No new dependency was added.
+- Existing API endpoints and payload contracts were preserved.
+- Optimistic state is component-local and does not mutate shared service responses or persisted domain objects.
+- Realtime refresh from task 40.1 remains authoritative after backend persistence; optimistic updates only cover the interaction gap before refresh.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Checked local HTTP routes:
+  GET http://127.0.0.1:5173/backlog
+  GET http://127.0.0.1:5173/sprints
+  GET http://127.0.0.1:5173/projects/1/board
+  Result: all returned HTTP 200 from the Vite app shell.
+- Checked backend health:
+  GET http://127.0.0.1:5000/
+  Result: HTTP 200 with API running status.
+
+Known risks:
+- Browser visual automation could not be completed because the in-app browser list returned empty in this session.
+- Optimistic coverage is focused on issue transitions, board moves, backlog ordering, and sprint assignment flows. Other task mutation flows still use their existing request/refresh behavior.
+
+---
+
+2026-05-29 - Phase 6 completion: bulk operations, import/export, performance, security, and final integration
+
+What changed:
+- Completed all remaining Phase 6 tasks 41 through 47 in `.kiro/specs/jira-parity-development/tasks.md`.
+- Added dedicated bulk operations backend:
+  `backend/src/services/bulkOperationsService.js`
+  `backend/src/controllers/bulkOperationsController.js`
+  `backend/src/routes/bulkOperationsRoutes.js`
+  The service supports bulk status changes, assignee replacement/unassignment, sprint assignment/removal, and deletion. It validates base permissions plus project access per issue, returns partial success/failure results, and writes a summary activity log.
+- Added backend import/export:
+  `backend/src/services/importExportService.js`
+  `backend/src/controllers/importExportController.js`
+  `backend/src/routes/importExportRoutes.js`
+  Import supports CSV/JSON, field mapping, validation preview, execution through the existing task creation service, user/project/issue type lookups, invalid-row skipping, and custom field value persistence. Export supports CSV, JSON, and Excel-compatible HTML with JQL, project, and issue filters.
+- Added validation helper:
+  `backend/src/utils/zodUtils.js`
+  New bulk/import/export endpoints parse Zod schemas before calling services.
+- Added security middleware:
+  `backend/src/middlewares/securityMiddleware.js`
+  Configured Helmet plus separate auth/API rate limits. `backend/src/server.js` now applies security headers, auth rate limiting for `/api/auth`, and API rate limiting before authenticated `/api` routes.
+- Added Phase 6 migration:
+  `backend/src/database/migrations/20260603_phase6_performance_security.sql`
+  Adds composite issue indexes, task full-text search GIN index, custom-field value lookup index, task-assignee lookup index, and RBAC rows for bulk/import/export/workflow execution.
+- Updated `backend/src/database/schema.sql` and `backend/run-migrations.js` so fresh schemas and migration runs include the Phase 6 indexes and permissions.
+- Tuned DB pool configuration:
+  `backend/src/config/db.js`
+  Pool max, connection timeout, idle timeout, and statement timeout are now env-configurable with validated positive integer parsing.
+- Optimized JQL text search:
+  `backend/src/services/jqlService.js`
+  `text ~` now includes a full-text predicate backed by the new GIN index while preserving the existing LIKE fallback behavior.
+- Added field-level export security:
+  Sensitive export fields such as environment are hidden unless the user has elevated access or read-sensitive task permission. Custom fields are included only when the user can read custom fields.
+- Hardened workflow transition execution:
+  `backend/src/routes/workflowRoutes.js`
+  `backend/src/services/workflowService.js`
+  Transition execution now requires workflow execute permission, transition audit metadata includes actor id/role, and `canTransitionIssue` was extracted for direct validation.
+- Added React Query caching and frontend performance improvements:
+  `frontend/src/app/queryClient.js`
+  `frontend/src/main.jsx`
+  `frontend/src/logic/hooks/useBacklog.js`
+  `frontend/src/logic/hooks/useSprints.js`
+  `frontend/src/logic/hooks/useIssueTypes.js`
+  Agile/reference hooks now use TanStack Query with explicit stale times.
+- Added virtualized large issue lists:
+  `frontend/src/logic/hooks/useVirtualRows.js`
+  `frontend/src/pages/BacklogPage.jsx`
+  `frontend/src/pages/JQLSearchPage.jsx`
+  Large backlog and JQL result tables now render only the visible row window with spacer rows.
+- Lazy-loaded issue details and comments:
+  `frontend/src/components/task/LazyTaskDetailModal.jsx`
+  `frontend/src/components/task/TaskDetailModal.jsx`
+  Board, Gantt, Project Detail, Calendar, Department Gantt, and Sprint Board pages now import the lazy detail modal wrapper, and comments load as a separate chunk inside the detail modal.
+- Added dependencies:
+  Backend: `express-rate-limit`, `helmet`
+  Frontend: `@tanstack/react-query`
+
+Business process impact:
+- Bulk issue changes can now be handled as a first-class Jira-style backend workflow with per-issue results instead of a single all-or-nothing task bulk update.
+- Teams can import issues from mapped CSV/JSON files and export filtered issue sets with standard and custom fields.
+- Search, backlog, and sprint views have better scaling behavior for larger issue sets.
+- API routes now have baseline security headers and rate limiting, while new endpoints reject malformed payloads before service execution.
+- Workflow transitions are audited with actor metadata and guarded by explicit execute permission.
+
+Technical impact:
+- Existing task creation/update/delete services remain the source of truth for import and bulk mutations, which preserves validation, notifications, realtime events, automation triggers, and progress recalculation behavior.
+- Export field visibility is handled in the export service rather than in UI code, so hidden fields are not sent to lower-privilege clients.
+- JQL text search keeps previous substring matching behavior while adding an indexed full-text path for larger datasets.
+- TanStack Query was added only for high-churn data hooks and keeps the previous hook return shape (`loading`, `error`, `refetch`, data field), limiting page-level churn.
+
+Verification:
+- Ran backend unit/property tests:
+  cd backend
+  npm test -- --runInBand
+  Result: 4 suites passed, 34 tests passed.
+- Ran backend syntax checks on new/changed backend entry points:
+  node --check backend/src/services/bulkOperationsService.js
+  node --check backend/src/controllers/bulkOperationsController.js
+  node --check backend/src/services/importExportService.js
+  node --check backend/src/controllers/importExportController.js
+  node --check backend/src/middlewares/securityMiddleware.js
+  node --check backend/src/routes/bulkOperationsRoutes.js
+  node --check backend/src/routes/importExportRoutes.js
+  node --check backend/src/utils/zodUtils.js
+  node --check backend/src/server.js
+  node --check backend/src/services/workflowService.js
+  node --check backend/src/services/jqlService.js
+  node --check backend/src/config/db.js
+  Result: all passed.
+- Ran database migrations:
+  cd backend
+  node run-migrations.js
+  Result: 18 success, 0 failed.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Restarted the local backend on port 5000 so the new middleware/routes are loaded.
+- Authenticated API smoke checks passed:
+  `POST /api/bulk-operations/issues/status`
+  `POST /api/import-export/import/preview`
+  `POST /api/import-export/export`
+  `GET /api/tasks?project_id=1`
+  `GET /api/sprints/project/1`
+  `GET /api/automation/rules?project_id=1`
+  `POST /api/jql/search`
+- Final integration smoke checks passed using disposable projects that were deleted afterward:
+  Epic/story/task lifecycle reached approved `Done` state and epic progress reached 100.
+  Sprint create/add/start/metrics/complete moved through `ACTIVE` to `CLOSED`.
+  Automation rule create/trigger/log flow produced one matched rule and one automation log.
+- Frontend route shell checks passed:
+  `GET http://127.0.0.1:5173/backlog`
+  `GET http://127.0.0.1:5173/jql`
+  `GET http://127.0.0.1:5173/sprints`
+  `GET http://127.0.0.1:5173/projects/1/board`
+  Result: all returned HTTP 200.
+
+Known risks:
+- In-app browser automation remained unavailable because the browser list returned empty, so visual browser screenshots were not captured.
+- The frontend build still reports the pre-existing large chunk warning; Phase 6 lazy loading split `TaskDetailModal` and `CommentThread`, but the main bundle still has other large app areas that can be code-split later.
+
+2026-06-08 20:07 +07:00 - Viewer role edit/delete UI gating
+
+Issue:
+- User Rahman with viewer/view role could still see edit/delete controls in the frontend.
+- Backend route guards and the local `role_permissions` table already deny viewer mutation permissions, but the UI still rendered project/task action buttons before the API rejected them.
+
+Changes made:
+- Added `frontend/src/logic/helpers/permissionHelper.js` to mirror backend fallback role permissions on the frontend, including `view` as an alias for `viewer`.
+- Updated project list UI so `Tambah Project`, project `Edit`, project `Delete`, and task label create/delete controls render only when the active role has the matching permission.
+- Updated project detail, board, and task list pages so create/edit/delete/approve/realisasi/bulk/drag actions are wired to explicit task and bucket permissions.
+- Updated `TaskTree`, `BoardView`, `BoardColumn`, `BucketManager`, `TaskBulkToolbar`, `TaskLabelManager`, and `ProjectCard` to support read-only rendering through permission props.
+- Updated `TaskDetailModal` and `CommentThread` so viewer users can read task detail, comments, labels, metadata, checklist, time tracking, and subtasks without seeing mutation controls.
+- Added UI-side guard messages in task mutation handlers so stale/open modals cannot send create/update/delete requests when the current role lacks permission.
+
+Technical impact:
+- Viewer users no longer see or trigger frontend affordances for project/task edit/delete.
+- Backend remains the source of truth for authorization; this change only aligns the frontend with the existing permission model.
+- Admin/manager/member/contributor permissions continue to use the same role/action shape as the backend fallback permissions.
+
+Verification:
+- Queried local `role_permissions` for `viewer`; only read/export/notification update style permissions were present, with no project/task update/delete permission.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- API smoke request was not run because the backend server was not active on `localhost:3001` during this turn.
+
+2026-06-08 19:48 +07:00 - Rate limit keying adjusted for LAN/Vite proxy usage
+
+Issue:
+- Users could see `Terlalu banyak request. Coba lagi nanti.` from API responses.
+- The message comes from `backend/src/middlewares/securityMiddleware.js` when `express-rate-limit` returns HTTP 429.
+- The previous API limiter used IP-based counting before authentication. In LAN/dev usage through Vite proxy, multiple browsers can be counted under the same backend source IP, so normal page loads from several users can share one request bucket.
+
+Changes made:
+- Updated `backend/src/middlewares/securityMiddleware.js`.
+- API rate limiting now keys authenticated requests by `req.user.id` after authentication, with safe IP fallback using `ipKeyGenerator`.
+- Auth/login rate limiting now keys by login identifier first, with safe IP fallback. Different users no longer consume the same login rate bucket just because they came through the same proxy path.
+- Increased internal default API limit from 300 to 1500 requests per 15 minutes.
+- Increased internal default auth limit from 20 to 50 attempts per 15 minutes.
+- Updated `backend/src/server.js` so `/api` requests authenticate first, then apply the API limiter with user context.
+- Added explicit env settings in `backend/.env`:
+  `API_RATE_LIMIT_MAX=1500`
+  `API_RATE_LIMIT_WINDOW_MINUTES=15`
+  `AUTH_RATE_LIMIT_MAX=50`
+  `AUTH_RATE_LIMIT_WINDOW_MINUTES=15`
+
+Technical impact:
+- Authenticated API traffic is no longer pooled for all LAN users behind the Vite proxy.
+- Login protection remains active, but is less likely to block other users because one account repeatedly attempts login.
+- Existing JSON error response shape is preserved.
+
+Business process impact:
+- Normal dashboard/project/Gantt usage should no longer be blocked quickly by shared rate-limit state.
+- If the message still appears for one user, it means that specific user/session is actually sending too many requests in the configured window.
+
+Verification:
+- Ran backend syntax checks:
+  `node --check backend/src/middlewares/securityMiddleware.js`
+  `node --check backend/src/server.js`
+  Result: passed.
+- Ran full backend unit test suite:
+  cd backend
+  npm test -- --runInBand
+  Result: 6 suites passed, 41 tests passed.
+- Ran local API smoke checks with Node fetch:
+  `POST /api/auth/login` for Rahman returned HTTP 200 with `RateLimit-Policy: 50;w=900`.
+  `GET /api/projects` with Rahman's token returned HTTP 200 with `RateLimit-Policy: 1500;w=900`.
+
+2026-06-08 19:31 +07:00 - Start-date based task numbering for Gantt and task views
+
+Changes made:
+- Added dynamic schedule numbering in `backend/src/services/taskService.js`.
+- Task API responses now include:
+  `schedule_sequence_number`
+  `schedule_issue_key`
+  `display_issue_key`
+- Schedule numbering is calculated per project from task `start_date`, then `sort_order`, then task id.
+- Updated task tree sorting so root tasks and subtasks are ordered by start date before manual sort order.
+- Updated Gantt/task UI badges to prefer the dynamic schedule number while keeping the stored `issue_key` as fallback:
+  `frontend/src/components/gantt/GanttTreeRow.jsx`
+  `frontend/src/components/task/TaskTree.jsx`
+  `frontend/src/components/task/TaskCard.jsx`
+  `frontend/src/components/task/TaskDetailModal.jsx`
+  `frontend/src/components/task/TaskBulkToolbar.jsx`
+  `frontend/src/pages/BacklogPage.jsx`
+  `frontend/src/components/sprint/SprintPlanningModal.jsx`
+- Updated subtask default start-date selection in `frontend/src/components/task/TaskFormModal.jsx` so it follows the latest child by date, not only manual sort order.
+- Added `frontend/src/logic/helpers/taskDisplayHelper.js` so task number display logic is consistent.
+- Added `backend/src/services/taskScheduleNumbering.test.js` for schedule key formatting and start-date sorting behavior.
+
+Technical impact:
+- Stored `issue_key` remains stable for references, links, exports, automation logs, and existing integrations.
+- Visible planning/Gantt numbering is now dynamic. If a task is inserted earlier by `start_date`, following visible schedule numbers shift automatically.
+- Example: a task that previously displayed after `AO05` can become `AO07` if a new task is inserted before it; the stored database `issue_key` is not rewritten.
+- Tasks without a stored issue key still get a display number derived from the project key or project name.
+
+Business process impact:
+- Gantt and task views now match timeline order: nomor task mengikuti tanggal mulai, bukan urutan kapan task dibuat.
+- For Aset Operasional, the API now returns `AO01` through `AO08` in start-date order, even though older stored keys include `AO-8`, `AO-6`, and `AO-7`.
+- Adding a new task dated before an existing task will make the new task take the earlier schedule number and push later task numbers down.
+
+Verification:
+- Ran backend syntax checks:
+  `node --check backend/src/services/taskService.js`
+  `node --check backend/src/services/taskScheduleNumbering.test.js`
+  Result: passed.
+- Ran targeted backend unit test:
+  cd backend
+  npm test -- --runInBand backend/src/services/taskScheduleNumbering.test.js
+  Result: 1 suite passed, 3 tests passed.
+- Ran full backend unit test suite:
+  cd backend
+  npm test -- --runInBand
+  Result: 6 suites passed, 41 tests passed.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Ran authenticated API smoke check:
+  `GET /api/projects/13/tasks?tree=true`
+  Result: Aset Operasional tasks returned `schedule_issue_key` values `AO01` to `AO08` ordered by `start_date`.
+
+2026-06-08 19:00 +07:00 - Project visibility restricted for non-admin users
+
+Changes made:
+- Added `backend/src/services/projectAccessService.js` as a shared backend helper for project visibility rules.
+- Updated `GET /api/projects` and `GET /api/projects/:id` so only `super_admin` and `admin` can see every project.
+- Updated task, project task, Gantt task, bucket, and task label read paths to reuse the same visibility rule when a logged-in user is present.
+- Updated dashboard summary metrics so non-admin users see project/task counts only from their accessible projects.
+- Added `backend/src/services/projectService.test.js` to verify that non-admin project queries include owner/member filtering while admin queries remain unrestricted.
+
+Technical impact:
+- Non-admin roles now only receive projects where they are the project owner or are listed in `project_members`.
+- Existing status, owner, department, location, and date filters on project/task queries are preserved and combined with the access filter.
+- Internal service calls that do not pass a request user keep their previous behavior, so create/update/delete flows and background logic are not unintentionally scoped.
+
+Business process impact:
+- User seperti Rahman tidak lagi melihat seluruh daftar project perusahaan jika rolenya bukan `admin` atau `super_admin`.
+- Project selector, project detail, board/list task project, Gantt task, bucket, dan label project mengikuti membership project yang sama.
+- Dashboard Rahman juga menampilkan ringkasan dari project yang dia ikuti saja, bukan total portfolio semua project.
+- Admin tetap dapat melakukan monitoring seluruh portfolio project seperti sebelumnya.
+
+Verification:
+- Ran backend syntax checks for the changed controllers/services.
+- Ran targeted backend unit test:
+  cd backend
+  npm test -- --runInBand backend/src/services/projectService.test.js
+  Result: 1 suite passed, 4 tests passed.
+- Ran full backend unit test suite:
+  cd backend
+  npm test -- --runInBand
+  Result: 5 suites passed, 38 tests passed.
+- Ran authenticated API smoke checks with Rahman (`role = viewer`):
+  `GET /api/projects`
+  Result: only project `Aset Operasional` (id 13) was returned.
+  `GET /api/projects/1`
+  Result: HTTP 404 because Rahman is not a member of that project.
+  `GET /api/tasks`
+  Result: all returned tasks belonged to project id 13.
+  `GET /api/dashboard/summary`
+  Result: `total_projects = 1`, matching Rahman's accessible project scope.
+- Ran authenticated API smoke check with `super_admin`:
+  `GET /api/projects`
+  Result: 20 projects returned, preserving admin portfolio access.
+
+2026-06-08 09:23 +07:00 - LAN access configuration
+
+Changes made:
+- Updated `backend/src/server.js` so the Express HTTP server can bind to an explicit `HOST` value from `backend/.env`.
+- Added `HOST=0.0.0.0` to `backend/.env` so the backend listens on the server PC network interface, not only local loopback.
+- Updated `FRONTEND_URL` in `backend/.env` to include:
+  `http://localhost:5173`
+  `http://127.0.0.1:5173`
+  `http://192.168.34.48:5173`
+- Added Windows Firewall inbound allow rules for TCP ports `5000` and `5173` on the Private network profile.
+- Changed the current Wi-Fi network profile from Public to Private so the LAN firewall rules apply.
+
+Technical impact:
+- Backend remains available locally at `http://localhost:5000`.
+- Backend is also reachable from other PCs on the same LAN through `http://192.168.34.48:5000`.
+- Frontend Vite config already uses `host: '0.0.0.0'`, so no frontend code change was required for LAN binding.
+- Frontend API fallback already builds the API URL from `window.location.hostname`, so when users open `http://192.168.34.48:5173`, API calls target `http://192.168.34.48:5000/api`.
+- Other PCs must be on the same LAN/subnet and should open the frontend URL from the server PC IP address.
+
+Business process impact:
+- Users on other PCs in the same network can access the Project Management app from a browser without running their own local frontend/backend.
+- The central server PC continues to be the single source for the running app and PostgreSQL database.
+- This change is intended for trusted LAN access, not public internet exposure.
+
+2026-06-09 11:32 +07:00 - Searchable task and Gantt filter dropdowns
+
+Changes made:
+- Added `frontend/src/components/shared/SearchableSelect.jsx` as a reusable searchable dropdown component with keyboard escape handling, outside-click close behavior, selected-option marking, and internal option filtering.
+- Replaced the native dropdowns in `frontend/src/components/task/TaskFilters.jsx` with `SearchableSelect` for project, PIC department, business unit, status, PIC, priority, and label filters.
+- Replaced the native dropdowns in `frontend/src/components/gantt/GanttFilters.jsx` with `SearchableSelect` for project, PIC department, business unit, PIC, status, and view mode filters.
+- No new frontend dependency was added; existing React state/hooks, Tailwind classes, and `lucide-react` icons are reused.
+
+Technical impact:
+- Filter values continue to be emitted as strings, matching the previous native `<select>` behavior and preserving existing query/filter contracts.
+- Each dropdown now opens a searchable panel with a search input and filtered option list.
+- Existing default options such as `All projects`, `All PIC departments`, `All business units`, `All statuses`, `All PIC`, `All priorities`, and `All labels` remain available.
+- Existing date filters, task search text filter, archived toggle, and parent filter update flow are unchanged.
+
+Business process impact:
+- Users can find long project, department, business unit, PIC, priority, and label option lists faster without scrolling through the full dropdown list.
+- Task List, Task Calendar, and Gantt filter workflows keep the same selected values and filtering behavior while improving option discovery.
+
+Verification:
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+- Confirmed the frontend dev server is already listening on `http://localhost:5173`.
+
+2026-06-09 11:37 +07:00 - Prevent invalid task issue type hierarchy selection
+
+Issue:
+- Backend correctly rejects a child issue with message `Issue type Task tidak dapat berada di bawah Task.` when the UI submits issue type `Task` under a parent that is also issue type `Task`.
+- Jira-style hierarchy rules allow a `Task` parent to contain `Subtask`, not another `Task`.
+
+Changes made:
+- Updated `frontend/src/components/task/TaskFormModal.jsx`.
+- The issue type dropdown now filters options based on the currently selected parent task issue type.
+- Root task creation still allows normal top-level issue types, while root `Subtask` is hidden because backend requires subtasks to have a parent.
+- Subtask/child creation under a `Task` parent now presents only valid child issue types such as `Subtask`.
+- Added frontend validation messaging when the selected issue type is not valid for the selected parent.
+
+Technical impact:
+- Backend hierarchy validation remains unchanged and continues to be the source of truth.
+- The frontend now mirrors the same parent-child issue type rules before submit, preventing avoidable API errors.
+- Existing task creation, edit, parent selection, bucket, epic, PIC, schedule, status, priority, and label payload shapes are preserved.
+
+Business process impact:
+- Users can no longer accidentally create `Task > Task` hierarchy from the form.
+- When adding work below a task, users are guided to create a valid `Subtask` instead.
+
+Verification:
+- Checked local `issue_types` data and confirmed global system types exist: Epic, Story, Task, Bug, and Subtask with the expected hierarchy rules.
+- Checked local database for existing invalid parent-child issue type pairs; no invalid pairs were found.
+- Ran frontend production build:
+  cd frontend
+  npm run build
+  Result: success, with the existing Vite chunk-size warning.
+
+2026-06-09 13:54 +07:00 - Hierarchical task display keys for parent and child structure
+
+Issue:
+- Task display keys were still generated as a flat project-wide sequence, so a parent could show as `SAC23` while its child showed as the next root-like key such as `SAC24`.
+- This made parent, child, grandchild, and deeper levels visually ambiguous in Task List, Gantt, and other screens that use the shared task display key.
+
+Changes made:
+- Updated `backend/src/services/taskService.js` so `schedule_issue_key` and `display_issue_key` are generated from the task hierarchy.
+- Root and parent tasks keep their existing project schedule base key, for example `SAC23`.
+- Direct children now append a sibling number to the parent display key, for example `SAC23.1`, `SAC23.2`.
+- Grandchildren and deeper descendants continue the path, for example `SAC23.1.1`, `SAC23.1.8.1`.
+- The permanent database `issue_key` remains unchanged so JQL, automation, watchers, issue links, time logs, and audit references keep their existing stable identifier behavior.
+- The existing flat `schedule_sequence_number` is preserved as internal schedule order metadata, while the visible key uses `schedule_hierarchy_path`.
+- Updated `backend/src/services/taskScheduleNumbering.test.js` to verify parent, child, grandchild, and sibling display key generation.
+
+Technical impact:
+- Frontend components that already call `getTaskDisplayKey` automatically receive the hierarchical display keys without additional UI changes.
+- Task List, Gantt, Task Card, Task Detail, Backlog, Sprint Planning, and bulk selection labels continue using the same display-key contract.
+- Archived handling remains aligned with the previous schedule query behavior: active tasks are included, and selected archived tasks can still receive display metadata.
+
+Business process impact:
+- Users can now distinguish hierarchy level directly from the task code:
+  root/parent: `SAC23`
+  child: `SAC23.1`
+  grandchild: `SAC23.1.1`
+- Add Subtask results are clearer because new child tasks display under the parent's code path instead of looking like another top-level task.
+
+Verification:
+- Ran focused backend test:
+  cd backend
+  npm test -- --runInBand src/services/taskScheduleNumbering.test.js
+  Result: success, 3 tests passed.
+- Ran full backend test suite:
+  cd backend
+  npm test -- --runInBand
+  Result: success, 6 test suites passed, 41 tests passed.
+- Smoke-checked local database through `getTasks({ tree: true, include_archived: 'true' })`.
+ Example result: `Trial & ERROR` displays as `SAC61`, with children `SAC61.1`, `SAC61.2`, `SAC61.3`, and `SAC61.4`.
+ Example deeper result: a level-3 task displays as `SAC23.1.8.1`.
+
+2026-06-09 14:05 +07:00 - Legacy task issue type badge fallback
+
+Issue:
+- Some rows displayed the blue `Task` issue type badge, while older imported/legacy rows did not show any issue type badge.
+- Local database check found 241 active tasks with `issue_type_id IS NULL`, including 64 root tasks and 177 child tasks.
+- `IssueTypeBadge` intentionally renders nothing when `issue_type_name` is empty, so those legacy rows appeared inconsistent.
+
+Changes made:
+- Updated `backend/src/services/taskService.js`.
+- Task API responses now provide a display fallback issue type for legacy rows with empty `issue_type_id`.
+- Root tasks and parent/summary tasks without an issue type display as `Task`.
+- Leaf child tasks without an issue type display as `Subtask`.
+- Existing stored `issue_type_id` values are not overwritten, avoiding unsafe bulk mutation on old multi-level hierarchy data.
+- New task creation now defaults missing issue type to `Task` for root tasks and `Subtask` for tasks created under a parent.
+- Parent validation now treats a legacy parent with no stored issue type as `Task` when creating a `Subtask`, so old parent rows can still use Add Subtask.
+
+Technical impact:
+- Frontend task tree, Gantt, task cards, task detail, and other task views receive a non-empty `issue_type_name` for legacy rows through the existing API contract.
+- Database identifiers and existing issue type assignments remain unchanged.
+- Future task creation is less likely to create rows with empty `issue_type_id`.
+
+Business process impact:
+- Rows such as `Pekerjaan` and `Development App e-KPI` now show the same visible `Task` badge behavior as newer rows such as `Project Pilot Meeting`.
+- Users can visually distinguish task type labels consistently after refreshing the page.
+
+Verification:
+- Ran backend syntax check:
+  node --check backend/src/services/taskService.js
+  Result: passed.
+- Ran full backend test suite:
+  cd backend
+  npm test -- --runInBand
+  Result: success, 6 test suites passed, 41 tests passed.
+- Smoke-checked local database through `getTasks({ tree: true, include_archived: 'true' })`.
+  Result: `missingLabels = 0`.
+  Example rows `Pekerjaan` and `Development App e-KPI` returned `issue_type_name = Task`.
+- Restarted backend process on port 5000 so the running API uses the new logic.

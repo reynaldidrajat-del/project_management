@@ -112,8 +112,8 @@ const createVersion = async (data, context = {}) => {
 
   const result = await query(
     `
-      INSERT INTO releases (project_id, name, description, start_date, release_date, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO releases (project_id, name, description, start_date, release_date, status, released, released_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $7 THEN NOW() ELSE NULL END)
       RETURNING id
     `,
     [
@@ -123,6 +123,7 @@ const createVersion = async (data, context = {}) => {
       data.start_date || null,
       data.release_date || null,
       status,
+      status === 'released',
     ],
   );
 
@@ -170,7 +171,16 @@ const updateVersion = async (id, data, context = {}) => {
         description = COALESCE($2, description),
         start_date = COALESCE($3, start_date),
         release_date = COALESCE($4, release_date),
-        status = COALESCE($5, status)
+        status = COALESCE($5, status),
+        released = CASE
+          WHEN COALESCE($5, status) = 'released' THEN TRUE
+          ELSE FALSE
+        END,
+        released_at = CASE
+          WHEN COALESCE($5, status) = 'released' AND released_at IS NULL THEN NOW()
+          WHEN COALESCE($5, status) = 'released' THEN released_at
+          ELSE NULL
+        END
       WHERE id = $6
       RETURNING id
     `,
@@ -268,7 +278,7 @@ const releaseVersion = async (id, context = {}) => {
   await query(
     `
       UPDATE releases
-      SET status = 'released', released_at = NOW()
+      SET status = 'released', released = TRUE, released_at = NOW()
       WHERE id = $1
     `,
     [id],
@@ -306,7 +316,7 @@ const archiveVersion = async (id, context = {}) => {
   await query(
     `
       UPDATE releases
-      SET status = 'archived'
+      SET status = 'archived', released = FALSE, released_at = NULL
       WHERE id = $1
     `,
     [id],

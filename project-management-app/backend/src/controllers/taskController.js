@@ -28,7 +28,7 @@ const listTasks = asyncHandler(async (req, res) => {
     ...req.query,
     my_tasks_user_id: req.query.my_tasks === 'true' ? req.user?.id : undefined,
     tree: req.query.tree === 'true',
-  });
+  }, { user: req.user });
   sendSuccess(res, tasks);
 });
 
@@ -37,13 +37,13 @@ const listProjectTasks = asyncHandler(async (req, res) => {
   const tasks = await getProjectTasks(req.params.projectId, {
     ...req.query,
     tree: req.query.tree === 'true',
-  });
+  }, { user: req.user });
   sendSuccess(res, tasks);
 });
 
 // Mengambil detail satu task berdasarkan id.
 const getTask = asyncHandler(async (req, res) => {
-  const task = await getTaskById(req.params.id);
+  const task = await getTaskById(req.params.id, { user: req.user });
 
   if (!task) {
     return sendError(res, 'Task tidak ditemukan.', 'Task tidak ditemukan.', 404);
@@ -54,7 +54,7 @@ const getTask = asyncHandler(async (req, res) => {
 
 // Mengambil semua subtask di bawah satu task.
 const listSubtasks = asyncHandler(async (req, res) => {
-  const subtasks = await getSubtasks(req.params.id);
+  const subtasks = await getSubtasks(req.params.id, { user: req.user });
   sendSuccess(res, subtasks);
 });
 

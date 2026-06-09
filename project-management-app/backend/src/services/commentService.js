@@ -1,7 +1,9 @@
 const { query } = require('../config/db');
 const { logActivity } = require('./activityService');
+const { triggerAutomation } = require('./automationService');
 const { createNotificationsForUsers, normalizeUserIds } = require('./notificationService');
 const { emitToProject, emitToTask } = require('./realtimeService');
+const { addIssueWatchers, getIssueWatcherIds } = require('./watcherService');
 
 const MAX_COMMENT_LENGTH = 4000;
 
@@ -275,6 +277,13 @@ const createTaskComment = async (taskId, payload = {}, context = {}) => {
   const createdComment = result.rows[0];
   const mentionUserIds = await resolveMentionUserIds(comment, payload.mention_user_ids);
   await replaceCommentMentions(createdComment.id, mentionUserIds);
+  await addIssueWatchers(task.id, [actorUserId, ...mentionUserIds], {
+    actor_user_id: actorUserId,
+    auto_watched: true,
+    ip_address: context.ip_address,
+    logActivity: false,
+    user_agent: context.user_agent,
+  });
   await markCommentRead(createdComment.id, actorUserId);
 
   await logActivity({
@@ -309,7 +318,8 @@ const createTaskComment = async (taskId, payload = {}, context = {}) => {
     },
   });
 
-  const participantIds = await getTaskCommentParticipantIds(task);
+  const watcherIds = await getIssueWatcherIds(task.id);
+  const participantIds = normalizeUserIds([...(await getTaskCommentParticipantIds(task)), ...watcherIds]);
   const mentionUserIdSet = new Set(mentionUserIds.map(Number));
   const commentNotificationUserIds = participantIds.filter((userId) => !mentionUserIdSet.has(Number(userId)));
 
@@ -337,6 +347,15 @@ const createTaskComment = async (taskId, payload = {}, context = {}) => {
 
   emitToProject(task.project_id, 'comment.created', realtimePayload);
   emitToTask(task.id, 'comment.created', realtimePayload);
+
+  try {
+    await triggerAutomation('comment_added', task.id, {
+      comment: commentWithDetails,
+      project_id: task.project_id,
+    }, context);
+  } catch (error) {
+    console.error(`Automation trigger failed for comment_added: ${error.message}`);
+  }
 
   return commentWithDetails;
 };

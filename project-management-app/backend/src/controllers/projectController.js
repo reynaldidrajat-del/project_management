@@ -15,13 +15,13 @@ const getRequestActivityContext = (req) => ({
 
 // Mengambil daftar project dengan filter dari frontend.
 const listProjects = asyncHandler(async (req, res) => {
-  const projects = await getProjects(req.query);
+  const projects = await getProjects(req.query, { user: req.user });
   sendSuccess(res, projects);
 });
 
 // Mengambil detail satu project dan mengembalikan 404 jika tidak ada.
 const getProject = asyncHandler(async (req, res) => {
-  const project = await getProjectById(req.params.id);
+  const project = await getProjectById(req.params.id, { user: req.user });
 
   if (!project) {
     return sendError(res, 'Project tidak ditemukan.', 'Project tidak ditemukan.', 404);
