@@ -5,6 +5,8 @@ import { queryStaleTimes } from '../../app/queryClient';
 import { getApiErrorMessage } from '../services/api';
 import { getBacklog, getBacklogStats } from '../services/backlogApi';
 
+const EMPTY_BACKLOG_ISSUE_LIST = [];
+
 const isMatchingProjectEvent = (payload, projectId) => !payload?.project_id || Number(payload.project_id) === Number(projectId);
 
 const buildQueryReturn = (query, fallbackData) => ({
@@ -52,7 +54,7 @@ export const useBacklog = (projectId, filters = {}, options = {}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, projectId || 'none', filterKey]);
 
-  return buildQueryReturn(query, (data) => ({ issues: data || [] }));
+  return buildQueryReturn(query, (data) => ({ issues: data || EMPTY_BACKLOG_ISSUE_LIST }));
 };
 
 export const useBacklogStats = (projectId, options = {}) => {

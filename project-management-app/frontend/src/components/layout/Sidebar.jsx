@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Eye } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
+import Modal from '../shared/Modal';
 import {
   getSidebarActiveGroupId,
   getSidebarInitialCollapsedGroupIds,
+  getSidebarNavigationGroups,
   sidebarNavigationGroups,
 } from './navigationConfig';
 
 const SIDEBAR_COLLAPSED_GROUPS_STORAGE_KEY = 'project-management-sidebar-collapsed-groups';
+const UNHIDE_MENU_PASSWORD = 'mamamia';
 
 const getStoredCollapsedGroupIds = () => {
   if (typeof window === 'undefined') {
@@ -42,6 +45,11 @@ function Sidebar() {
   const location = useLocation();
   const activeGroupId = getSidebarActiveGroupId(location.pathname);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState(getStoredCollapsedGroupIds);
+  const [showHiddenMenus, setShowHiddenMenus] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const visibleNavigationGroups = getSidebarNavigationGroups({ showHiddenItems: showHiddenMenus });
 
   useEffect(() => {
     if (!activeGroupId) {
@@ -63,94 +71,161 @@ function Sidebar() {
     );
   };
 
+  const closePasswordModal = () => {
+    setPasswordModalOpen(false);
+    setPassword('');
+    setPasswordError('');
+  };
+
+  const handleUnhideSubmit = (event) => {
+    event.preventDefault();
+
+    if (password !== UNHIDE_MENU_PASSWORD) {
+      setPasswordError('Password salah.');
+      return;
+    }
+
+    setShowHiddenMenus(true);
+    closePasswordModal();
+  };
+
   return (
-    <aside className="sticky top-0 hidden h-screen w-80 shrink-0 overflow-y-auto border-r border-border bg-white px-4 py-4 lg:flex lg:flex-col">
-      <div className="mb-5 flex items-center gap-3 border-b border-border pb-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-black text-white shadow-sm">
-          PG
+    <>
+      <aside className="sticky top-0 hidden h-screen w-80 shrink-0 overflow-y-auto border-r border-border bg-white px-4 py-4 lg:flex lg:flex-col">
+        <div className="mb-5 flex items-center gap-3 border-b border-border pb-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-black text-white shadow-sm">
+            PG
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Planner Gantt</p>
+            <h1 className="text-base font-bold leading-tight text-text-dark">Department Timeline Hub</h1>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Planner Gantt</p>
-          <h1 className="text-base font-bold leading-tight text-text-dark">Department Timeline Hub</h1>
-        </div>
-      </div>
 
-      <nav className="space-y-3">
-        {sidebarNavigationGroups.map((group) => {
-          const GroupIcon = group.icon;
-          const isCollapsed = collapsedGroupIds.includes(group.id);
-          const isGroupActive = group.items.some((item) => item.match(location.pathname));
+        <nav className="space-y-3 pb-20">
+          {visibleNavigationGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const isCollapsed = collapsedGroupIds.includes(group.id);
+            const isGroupActive = group.items.some((item) => item.match(location.pathname));
 
-          return (
-            <section key={group.id} className="space-y-2">
-              <button
-                aria-expanded={!isCollapsed}
-                className={[
-                  'group flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition',
-                  isGroupActive
-                    ? 'border-primary/15 bg-primary-light text-primary-dark'
-                    : 'border-transparent bg-slate-50 text-text-muted hover:border-border hover:bg-slate-100 hover:text-text-dark',
-                ].join(' ')}
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  <span
-                    className={[
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition',
-                      isGroupActive ? 'bg-primary text-white' : 'bg-white text-slate-500 group-hover:text-text-dark',
-                    ].join(' ')}
-                  >
-                    <GroupIcon className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <span className="min-w-0 truncate text-sm font-semibold">{group.label}</span>
-                </span>
-                <ChevronDown
+            return (
+              <section key={group.id} className="space-y-2">
+                <button
+                  aria-expanded={!isCollapsed}
                   className={[
-                    'h-4 w-4 shrink-0 transition-transform duration-200',
-                    isCollapsed ? 'rotate-180' : 'rotate-0',
+                    'group flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-left transition',
+                    isGroupActive
+                      ? 'border-primary/15 bg-primary-light text-primary-dark'
+                      : 'border-transparent bg-slate-50 text-text-muted hover:border-border hover:bg-slate-100 hover:text-text-dark',
                   ].join(' ')}
-                  aria-hidden="true"
-                />
-              </button>
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={[
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition',
+                        isGroupActive ? 'bg-primary text-white' : 'bg-white text-slate-500 group-hover:text-text-dark',
+                      ].join(' ')}
+                    >
+                      <GroupIcon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 truncate text-sm font-semibold">{group.label}</span>
+                  </span>
+                  <ChevronDown
+                    className={[
+                      'h-4 w-4 shrink-0 transition-transform duration-200',
+                      isCollapsed ? 'rotate-180' : 'rotate-0',
+                    ].join(' ')}
+                    aria-hidden="true"
+                  />
+                </button>
 
-              {!isCollapsed ? (
-                <div className="space-y-1 pl-2">
-                  {group.items.map((item) => {
-                    const ItemIcon = item.icon;
-                    const isActive = item.match(location.pathname);
+                {!isCollapsed ? (
+                  <div className="space-y-1 pl-2">
+                    {group.items.map((item) => {
+                      const ItemIcon = item.icon;
+                      const isActive = item.match(location.pathname);
 
-                    return (
-                      <Link
-                        key={item.path}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={[
-                          'group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold transition',
-                          isActive
-                            ? 'border-primary/15 bg-primary-light text-primary-dark shadow-sm'
-                            : 'border-transparent text-text-muted hover:border-border hover:bg-slate-100 hover:text-text-dark',
-                        ].join(' ')}
-                        to={item.path}
-                      >
-                        <span
+                      return (
+                        <Link
+                          key={item.path}
+                          aria-current={isActive ? 'page' : undefined}
                           className={[
-                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition',
-                            isActive ? 'bg-primary text-white' : 'bg-white text-slate-500 group-hover:text-text-dark',
+                            'group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-semibold transition',
+                            isActive
+                              ? 'border-primary/15 bg-primary-light text-primary-dark shadow-sm'
+                              : 'border-transparent text-text-muted hover:border-border hover:bg-slate-100 hover:text-text-dark',
                           ].join(' ')}
+                          to={item.path}
                         >
-                          <ItemIcon className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </section>
-          );
-        })}
-      </nav>
-    </aside>
+                          <span
+                            className={[
+                              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition',
+                              isActive ? 'bg-primary text-white' : 'bg-white text-slate-500 group-hover:text-text-dark',
+                            ].join(' ')}
+                          >
+                            <ItemIcon className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {!showHiddenMenus ? (
+        <button
+          className="fixed bottom-4 left-4 z-50 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-white text-primary shadow-soft transition hover:border-primary/40 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          title="Unhide menu"
+          type="button"
+          onClick={() => setPasswordModalOpen(true)}
+        >
+          <Eye className="h-5 w-5" aria-hidden="true" />
+          <span className="sr-only">Unhide menu</span>
+        </button>
+      ) : null}
+
+      <Modal
+        footer={
+          <>
+            <button className="btn-secondary" type="button" onClick={closePasswordModal}>
+              Cancel
+            </button>
+            <button className="btn-primary" form="unhide-menu-form" type="submit">
+              Unhide
+            </button>
+          </>
+        }
+        open={passwordModalOpen}
+        size="sm"
+        title="Unhide menu"
+        onClose={closePasswordModal}
+      >
+        <form id="unhide-menu-form" noValidate onSubmit={handleUnhideSubmit}>
+          <label className="label" htmlFor="unhide-menu-password">
+            Password
+          </label>
+          <input
+            autoFocus
+            className={`field mt-1 ${passwordError ? 'field-error' : ''}`}
+            id="unhide-menu-password"
+            type="password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setPasswordError('');
+            }}
+          />
+          {passwordError ? <p className="form-error">{passwordError}</p> : null}
+        </form>
+      </Modal>
+    </>
   );
 }
 

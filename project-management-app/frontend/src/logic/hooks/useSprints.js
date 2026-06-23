@@ -5,6 +5,9 @@ import { queryStaleTimes } from '../../app/queryClient';
 import { getApiErrorMessage } from '../services/api';
 import { getActiveSprint, getSprintIssues, getSprintMetrics, getSprints } from '../services/sprintApi';
 
+const EMPTY_SPRINT_LIST = [];
+const EMPTY_SPRINT_ISSUE_LIST = [];
+
 const isMatchingProjectEvent = (payload, projectId) => !payload?.project_id || Number(payload.project_id) === Number(projectId);
 
 const isMatchingSprintEvent = (payload, sprintId) => {
@@ -56,7 +59,7 @@ export const useSprints = (projectId, params = {}, options = {}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, projectId || 'none', paramsKey]);
 
-  return buildQueryReturn(query, (data) => ({ sprints: data || [] }));
+  return buildQueryReturn(query, (data) => ({ sprints: data || EMPTY_SPRINT_LIST }));
 };
 
 export const useActiveSprint = (projectId, options = {}) => {
@@ -122,7 +125,7 @@ export const useSprintIssues = (sprintId, options = {}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, sprintId || 'none']);
 
-  return buildQueryReturn(query, (data) => ({ issues: data || [] }));
+  return buildQueryReturn(query, (data) => ({ issues: data || EMPTY_SPRINT_ISSUE_LIST }));
 };
 
 export const useSprintMetrics = (sprintId, options = {}) => {

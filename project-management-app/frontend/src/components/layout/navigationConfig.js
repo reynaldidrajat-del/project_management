@@ -220,6 +220,35 @@ export const sidebarNavigationGroups = [
   },
 ];
 
+const DEFAULT_VISIBLE_SIDEBAR_PATHS = new Set([
+  '/',
+  '/projects',
+  '/my-tasks',
+  '/tasks',
+  '/tasks/calendar',
+  '/gantt',
+  '/departments/gantt',
+  '/performance',
+  '/notifications',
+  '/team',
+  '/locations',
+  '/calendar',
+  '/settings',
+]);
+
+export const getSidebarNavigationGroups = ({ showHiddenItems = false } = {}) => {
+  if (showHiddenItems) {
+    return sidebarNavigationGroups;
+  }
+
+  return sidebarNavigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => DEFAULT_VISIBLE_SIDEBAR_PATHS.has(item.path)),
+    }))
+    .filter((group) => group.items.length);
+};
+
 export const getSidebarInitialCollapsedGroupIds = () =>
   sidebarNavigationGroups.filter((group) => group.defaultCollapsed).map((group) => group.id);
 
