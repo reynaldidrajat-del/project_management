@@ -44,7 +44,7 @@ const getDashboardSummary = async (context = {}) => {
       WITH task_status AS (
         SELECT
           CASE
-            WHEN t.end_date < CURRENT_DATE AND t.progress < 100 AND t.status <> 'Done' THEN 'Overdue'
+            WHEN t.end_date < CURRENT_DATE AND t.progress < 100 AND t.status NOT IN ('Done', 'Waiting Review') THEN 'Overdue'
             ELSE t.status
           END AS effective_status
         FROM tasks t
@@ -109,7 +109,7 @@ const getDashboardSummary = async (context = {}) => {
       WITH task_status AS (
         SELECT
           CASE
-            WHEN t.end_date < CURRENT_DATE AND t.progress < 100 AND t.status <> 'Done' THEN 'Overdue'
+            WHEN t.end_date < CURRENT_DATE AND t.progress < 100 AND t.status NOT IN ('Done', 'Waiting Review') THEN 'Overdue'
             ELSE t.status
           END AS status
         FROM tasks t
@@ -129,7 +129,7 @@ const getDashboardSummary = async (context = {}) => {
         INNER JOIN users task_user ON task_user.id = ta.user_id
         WHERE t.end_date < CURRENT_DATE
           AND t.progress < 100
-          AND t.status <> 'Done'
+          AND t.status NOT IN ('Done', 'Waiting Review')
           AND task_user.department_id IS NOT NULL
         UNION
         SELECT DISTINCT legacy_task_user.department_id, t.id AS task_id, t.project_id
@@ -137,7 +137,7 @@ const getDashboardSummary = async (context = {}) => {
         INNER JOIN users legacy_task_user ON legacy_task_user.id = t.assignee_id
         WHERE t.end_date < CURRENT_DATE
           AND t.progress < 100
-          AND t.status <> 'Done'
+          AND t.status NOT IN ('Done', 'Waiting Review')
           AND legacy_task_user.department_id IS NOT NULL
       ),
       overdue_tasks AS (
